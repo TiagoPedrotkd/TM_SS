@@ -1,0 +1,197 @@
+[
+  {
+    "fold": 1,
+    "model": "bow_knn",
+    "metrics": {
+      "0": {
+        "precision": 0.855072463768116,
+        "recall": 0.2041522491349481,
+        "f1-score": 0.329608938547486,
+        "support": 289
+      },
+      "1": {
+        "precision": 0.8125,
+        "recall": 0.3046875,
+        "f1-score": 0.4431818181818182,
+        "support": 384
+      },
+      "2": {
+        "precision": 0.714622641509434,
+        "recall": 0.9805825242718447,
+        "f1-score": 0.8267394270122784,
+        "support": 1236
+      },
+      "accuracy": 0.7270822420115244,
+      "macro avg": {
+        "precision": 0.7940650350925167,
+        "recall": 0.4964740911355976,
+        "f1-score": 0.5331767279138608,
+        "support": 1909
+      },
+      "weighted avg": {
+        "precision": 0.755573350934859,
+        "recall": 0.7270822420115244,
+        "f1-score": 0.6743262091195483,
+        "support": 1909
+      },
+      "feature_type": "bow",
+      "model_name": "knn"
+    }
+  },
+  {
+    "fold": 2,
+    "model": "bow_knn",
+    "metrics": {
+      "0": {
+        "precision": 0.7540983606557377,
+        "recall": 0.15916955017301038,
+        "f1-score": 0.26285714285714284,
+        "support": 289
+      },
+      "1": {
+        "precision": 0.7890625,
+        "recall": 0.2630208333333333,
+        "f1-score": 0.39453125,
+        "support": 384
+      },
+      "2": {
+        "precision": 0.7075581395348837,
+        "recall": 0.9846278317152104,
+        "f1-score": 0.8234100135317998,
+        "support": 1236
+      },
+      "accuracy": 0.7145102147721321,
+      "macro avg": {
+        "precision": 0.7502396667302071,
+        "recall": 0.46893940507385135,
+        "f1-score": 0.49359946879631417,
+        "support": 1909
+      },
+      "weighted avg": {
+        "precision": 0.7309985786771213,
+        "recall": 0.7145102147721321,
+        "f1-score": 0.6522789371456358,
+        "support": 1909
+      },
+      "feature_type": "bow",
+      "model_name": "knn"
+    }
+  },
+  {
+    "fold": 3,
+    "model": "bow_knn",
+    "metrics": {
+      "0": {
+        "precision": 0.7571428571428571,
+        "recall": 0.1840277777777778,
+        "f1-score": 0.29608938547486036,
+        "support": 288
+      },
+      "1": {
+        "precision": 0.7960526315789473,
+        "recall": 0.3142857142857143,
+        "f1-score": 0.45065176908752325,
+        "support": 385
+      },
+      "2": {
+        "precision": 0.7154712507409603,
+        "recall": 0.9765372168284789,
+        "f1-score": 0.8258638385220665,
+        "support": 1236
+      },
+      "accuracy": 0.7234154007333683,
+      "macro avg": {
+        "precision": 0.7562222464875883,
+        "recall": 0.4916169029639903,
+        "f1-score": 0.5242016643614834,
+        "support": 1909
+      },
+      "weighted avg": {
+        "precision": 0.738009361933402,
+        "recall": 0.7234154007333683,
+        "f1-score": 0.6702684015341699,
+        "support": 1909
+      },
+      "feature_type": "bow",
+      "model_name": "knn"
+    }
+  },
+  {
+    "fold": 4,
+    "model": "bow_knn",
+    "metrics": {
+      "0": {
+        "precision": 0.7586206896551724,
+        "recall": 0.1527777777777778,
+        "f1-score": 0.254335260115607,
+        "support": 288
+      },
+      "1": {
+        "precision": 0.7484662576687117,
+        "recall": 0.3168831168831169,
+        "f1-score": 0.44525547445255476,
+        "support": 385
+      },
+      "2": {
+        "precision": 0.7160640189685833,
+        "recall": 0.9781376518218623,
+        "f1-score": 0.8268309377138946,
+        "support": 1235
+      },
+      "accuracy": 0.720125786163522,
+      "macro avg": {
+        "precision": 0.7410503220974891,
+        "recall": 0.48259951549425234,
+        "f1-score": 0.5088072240940188,
+        "support": 1908
+      },
+      "weighted avg": {
+        "precision": 0.7290258549524864,
+        "recall": 0.720125786163522,
+        "f1-score": 0.6634214468837465,
+        "support": 1908
+      },
+      "feature_type": "bow",
+      "model_name": "knn"
+    }
+  },
+  {
+    "fold": 5,
+    "model": "bow_knn",
+    "metrics": {
+      "0": {
+        "precision": 0.8392857142857143,
+        "recall": 0.16319444444444445,
+        "f1-score": 0.27325581395348836,
+        "support": 288
+      },
+      "1": {
+        "precision": 0.7666666666666667,
+        "recall": 0.23896103896103896,
+        "f1-score": 0.36435643564356435,
+        "support": 385
+      },
+      "2": {
+        "precision": 0.703810623556582,
+        "recall": 0.9870445344129555,
+        "f1-score": 0.8217054263565892,
+        "support": 1235
+      },
+      "accuracy": 0.7117400419287212,
+      "macro avg": {
+        "precision": 0.7699210015029877,
+        "recall": 0.4630666726061463,
+        "f1-score": 0.48643922531788064,
+        "support": 1908
+      },
+      "weighted avg": {
+        "precision": 0.7369429101013266,
+        "recall": 0.7117400419287212,
+        "f1-score": 0.6466357985805894,
+        "support": 1908
+      },
+      "feature_type": "bow",
+      "model_name": "knn"
+    }
+  }
+]

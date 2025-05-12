@@ -12,18 +12,19 @@ from plotly.subplots import make_subplots
 import logging
 from pathlib import Path
 import json
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, List
 
 from utils.data_loader import load_datasets
 from preprocessing.text_processor import TextPreprocessor
 from features.feature_extraction import create_feature_extractor
 from models.classifiers import LSTMClassifier, TransformerClassifier, TorchClassifierWrapper
+from utils.model_selection import CrossValidator
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class ModelTrainer:
-    def __init__(self, output_dir: str = None):
+    def __init__(self, output_dir: str = None, n_folds: int = 5):
         if output_dir is None:
             output_dir = Path('results/model_evaluation')
         self.output_dir = Path(output_dir)
@@ -35,6 +36,8 @@ class ModelTrainer:
             'word2vec': {'vector_size': 100, 'window': 5},
             'transformer': {'model_name': 'bert-base-uncased', 'max_length': 128}
         }
+        self.n_folds = n_folds
+        self.cross_validator = CrossValidator(n_splits=n_folds)
     
     def prepare_data(self) -> Tuple[Dict[str, np.ndarray], np.ndarray]:
         """Prepare data with different feature extraction methods."""
@@ -104,7 +107,7 @@ class ModelTrainer:
     ) -> Dict[str, Any]:
         """Evaluate model and return metrics."""
         y_pred = model.predict(X)
-        report = classification_report(y, y_pred, output_dict=True)
+        report = classification_report(y, y_pred, output_dict=True, zero_division=0)
         conf_matrix = confusion_matrix(y, y_pred)
         
         # Add feature type and model name to report
@@ -116,18 +119,23 @@ class ModelTrainer:
             'confusion_matrix': conf_matrix
         }
     
-    def plot_results(self, results: Dict[str, Dict[str, Any]]) -> None:
-        """Plot evaluation results."""
+    def plot_results(self, results: Dict[str, Dict[str, Any]], fold_metrics: Dict[str, Dict[str, float]]) -> None:
+        """Plot evaluation results including cross-validation metrics."""
         # Create subplots for each metric
         metrics = ['precision', 'recall', 'f1-score']
         classes = ['Bearish', 'Bullish', 'Neutral']
         
+        # Calculate number of rows needed
+        n_rows = len(metrics) + 1  # +1 for CV metrics
+        
         fig = make_subplots(
-            rows=len(metrics),
+            rows=n_rows,
             cols=1,
-            subplot_titles=[metric.capitalize() for metric in metrics]
+            subplot_titles=[metric.capitalize() for metric in metrics] + ['Cross-Validation Metrics'],
+            vertical_spacing=0.1
         )
         
+        # Plot per-class metrics
         for i, metric in enumerate(metrics, 1):
             for feature_type in self.feature_extractors.keys():
                 for model_name in ['knn', 'lstm', 'transformer']:
@@ -148,20 +156,64 @@ class ModelTrainer:
                             col=1
                         )
         
+        # Plot cross-validation metrics
+        cv_metrics = ['accuracy', 'f1-score']
+        for i, metric in enumerate(cv_metrics):
+            values = []
+            labels = []
+            for model_key, metrics in fold_metrics.items():
+                if metric in metrics:
+                    values.append(metrics[metric]['mean'])
+                    labels.append(model_key)
+            
+            if values:  # Only add trace if we have values
+                fig.add_trace(
+                    go.Bar(
+                        name=metric,
+                        x=labels,
+                        y=values,
+                        error_y=dict(
+                            type='data',
+                            array=[fold_metrics[label][metric]['std'] for label in labels],
+                            visible=True
+                        ),
+                        showlegend=(i == 0)
+                    ),
+                    row=n_rows,
+                    col=1
+                )
+        
+        # Update layout
         fig.update_layout(
-            title='Model Comparison by Feature Type',
+            title='Model Comparison by Feature Type and Cross-Validation Results',
             template='plotly_white',
-            height=900
+            height=300 * n_rows,  # Adjust height based on number of rows
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
         )
+        
+        # Update y-axis labels
+        for i in range(1, n_rows + 1):
+            fig.update_yaxes(title_text="Score", row=i, col=1)
         
         fig.write_html(self.output_dir / 'model_comparison.html')
     
-    def save_results(self, results: Dict[str, Dict[str, Any]]) -> None:
+    def save_results(self, results: Dict[str, Dict[str, Any]], fold_metrics: Dict[str, Dict[str, float]]) -> None:
         """Save evaluation results to JSON."""
         # Convert numpy arrays to lists for JSON serialization
-        serializable_results = {}
+        serializable_results = {
+            'per_fold_results': {},
+            'cross_validation_metrics': fold_metrics
+        }
+        
         for key, value in results.items():
-            serializable_results[key] = {
+            serializable_results['per_fold_results'][key] = {
                 'report': value['report'],
                 'confusion_matrix': value['confusion_matrix'].tolist()
             }
@@ -170,38 +222,50 @@ class ModelTrainer:
             json.dump(serializable_results, f, indent=2)
     
     def train_and_evaluate(self) -> None:
-        """Train and evaluate all models."""
+        """Train and evaluate all models using k-fold cross validation."""
         # Prepare data
         features, labels = self.prepare_data()
         
-        # Split data
+        # Initialize results storage
         results = {}
+        fold_metrics = {}
+        
+        # Perform k-fold cross validation for each feature type and model
         for feature_type, X in features.items():
-            X_train, X_val, y_train, y_val = train_test_split(
-                X, labels, test_size=0.2, random_state=42
-            )
-            
-            # Train and evaluate KNN
-            knn_model = self.train_knn(X_train, y_train)
-            results[f"{feature_type}_knn"] = self.evaluate_model(
-                knn_model, X_val, y_val, 'knn', feature_type
-            )
-            
-            # Train and evaluate LSTM
-            lstm_model = self.train_lstm(X_train, y_train)
-            results[f"{feature_type}_lstm"] = self.evaluate_model(
-                lstm_model, X_val, y_val, 'lstm', feature_type
-            )
-            
-            # Train and evaluate Transformer
-            transformer_model = self.train_transformer(X_train, y_train)
-            results[f"{feature_type}_transformer"] = self.evaluate_model(
-                transformer_model, X_val, y_val, 'transformer', feature_type
-            )
+            for model_name in ['knn', 'lstm', 'transformer']:
+                fold_results = []
+                
+                # Iterate through folds
+                for fold, (X_train, X_val, y_train, y_val) in enumerate(self.cross_validator.split(X, labels)):
+                    logger.info(f"\nProcessing fold {fold + 1}/{self.n_folds} for {model_name} with {feature_type}")
+                    
+                    # Train model
+                    if model_name == 'knn':
+                        model = self.train_knn(X_train, y_train)
+                    elif model_name == 'lstm':
+                        model = self.train_lstm(X_train, y_train)
+                    else:  # transformer
+                        model = self.train_transformer(X_train, y_train)
+                    
+                    # Evaluate model
+                    fold_result = self.evaluate_model(model, X_val, y_val, model_name, feature_type)
+                    fold_results.append(fold_result)
+                    
+                    # Add fold result to cross validator
+                    self.cross_validator.add_fold_result(
+                        fold=fold,
+                        metrics=fold_result['report'],
+                        model_name=f"{feature_type}_{model_name}"
+                    )
+                
+                # Store results
+                key = f"{feature_type}_{model_name}"
+                results[key] = fold_results[-1]  # Store last fold's results for detailed analysis
+                fold_metrics[key] = self.cross_validator.get_average_metrics()
         
         # Plot and save results
-        self.plot_results(results)
-        self.save_results(results)
+        self.plot_results(results, fold_metrics)
+        self.save_results(results, fold_metrics)
         
         logger.info(f"\nResults saved to {self.output_dir}")
 

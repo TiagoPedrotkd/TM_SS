@@ -13,6 +13,14 @@ from typing import List, Dict, Tuple
 import logging
 import sys
 import os
+import emoji
+from bs4 import BeautifulSoup
+import contractions
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+from nltk.tokenize import word_tokenize
+from nltk.probability import FreqDist
+import string
 
 # Add src directory to Python path
 src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -36,24 +44,166 @@ class PreprocessingAnalyzer:
         self.output_dir = Path(output_dir)
         logger.info(f"Output directory set to: {self.output_dir.absolute()}")
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        
-    def analyze_text_lengths(self, texts: List[str]) -> go.Figure:
+    
+    def analyze_text_lengths(self, texts: List[str], original_texts: List[str] = None) -> go.Figure:
         """Create distribution plot of text lengths."""
-        lengths = [len(text.split()) for text in texts]
+        fig = make_subplots(rows=1, cols=2, subplot_titles=('Original Text Lengths', 'Processed Text Lengths'))
         
-        fig = go.Figure()
-        fig.add_trace(go.Histogram(
-            x=lengths,
-            nbinsx=50,
-            name='Text Length Distribution'
-        ))
+        # Plot original lengths if provided
+        if original_texts:
+            original_lengths = [len(text.split()) for text in original_texts]
+            fig.add_trace(
+                go.Histogram(x=original_lengths, nbinsx=50, name='Original'),
+                row=1, col=1
+            )
+        
+        # Plot processed lengths
+        processed_lengths = [len(text.split()) for text in texts]
+        fig.add_trace(
+            go.Histogram(x=processed_lengths, nbinsx=50, name='Processed'),
+            row=1, col=2
+        )
         
         fig.update_layout(
-            title='Distribution of Text Lengths (words)',
-            xaxis_title='Number of Words',
-            yaxis_title='Count',
-            template='plotly_white'
+            title='Text Length Distribution Comparison',
+            template='plotly_white',
+            showlegend=True
         )
+        
+        fig.update_xaxes(title_text='Number of Words', row=1, col=1)
+        fig.update_xaxes(title_text='Number of Words', row=1, col=2)
+        fig.update_yaxes(title_text='Count', row=1, col=1)
+        fig.update_yaxes(title_text='Count', row=1, col=2)
+        
+        return fig
+    
+    def analyze_vocabulary(self, texts: List[str], original_texts: List[str] = None) -> Tuple[go.Figure, Dict]:
+        """Analyze vocabulary before and after preprocessing."""
+        stats = {}
+        
+        # Analyze original texts
+        if original_texts:
+            original_words = ' '.join(original_texts).lower().split()
+            original_vocab = set(original_words)
+            stats['original'] = {
+                'total_words': len(original_words),
+                'unique_words': len(original_vocab),
+                'avg_word_length': np.mean([len(word) for word in original_words])
+            }
+        
+        # Analyze processed texts
+        processed_words = ' '.join(texts).lower().split()
+        processed_vocab = set(processed_words)
+        stats['processed'] = {
+            'total_words': len(processed_words),
+            'unique_words': len(processed_vocab),
+            'avg_word_length': np.mean([len(word) for word in processed_words])
+        }
+        
+        # Create comparison visualization
+        fig = make_subplots(rows=1, cols=3, 
+                           subplot_titles=('Total Words', 'Unique Words', 'Average Word Length'))
+        
+        if original_texts:
+            fig.add_trace(
+                go.Bar(name='Original', x=['Total Words'], y=[stats['original']['total_words']]),
+                row=1, col=1
+            )
+            fig.add_trace(
+                go.Bar(name='Original', x=['Unique Words'], y=[stats['original']['unique_words']]),
+                row=1, col=2
+            )
+            fig.add_trace(
+                go.Bar(name='Original', x=['Avg Length'], y=[stats['original']['avg_word_length']]),
+                row=1, col=3
+            )
+        
+        fig.add_trace(
+            go.Bar(name='Processed', x=['Total Words'], y=[stats['processed']['total_words']]),
+            row=1, col=1
+        )
+        fig.add_trace(
+            go.Bar(name='Processed', x=['Unique Words'], y=[stats['processed']['unique_words']]),
+            row=1, col=2
+        )
+        fig.add_trace(
+            go.Bar(name='Processed', x=['Avg Length'], y=[stats['processed']['avg_word_length']]),
+            row=1, col=3
+        )
+        
+        fig.update_layout(
+            title='Vocabulary Analysis Comparison',
+            template='plotly_white',
+            showlegend=True,
+            barmode='group'
+        )
+        
+        return fig, stats
+    
+    def generate_wordclouds(self, texts: List[str], original_texts: List[str] = None) -> None:
+        """Generate word clouds for original and processed texts."""
+        try:
+            if original_texts:
+                # Generate word cloud for original texts
+                original_text = ' '.join(original_texts)
+                wordcloud_original = WordCloud(width=800, height=400, background_color='white').generate(original_text)
+                plt.figure(figsize=(10, 5))
+                plt.imshow(wordcloud_original, interpolation='bilinear')
+                plt.axis('off')
+                plt.title('Word Cloud - Original Texts')
+                plt.savefig(self.output_dir / 'wordcloud_original.png')
+                plt.close()
+            
+            # Generate word cloud for processed texts
+            processed_text = ' '.join(texts)
+            wordcloud_processed = WordCloud(width=800, height=400, background_color='white').generate(processed_text)
+            plt.figure(figsize=(10, 5))
+            plt.imshow(wordcloud_processed, interpolation='bilinear')
+            plt.axis('off')
+            plt.title('Word Cloud - Processed Texts')
+            plt.savefig(self.output_dir / 'wordcloud_processed.png')
+            plt.close()
+        except Exception as e:
+            logger.warning(f"Error generating word clouds: {str(e)}")
+    
+    def analyze_word_frequency_distribution(self, texts: List[str], original_texts: List[str] = None) -> go.Figure:
+        """Analyze word frequency distribution before and after preprocessing."""
+        fig = make_subplots(rows=1, cols=2, 
+                           subplot_titles=('Original Text', 'Processed Text'))
+        
+        if original_texts:
+            # Analyze original texts
+            original_words = ' '.join(original_texts).lower().split()
+            original_fdist = FreqDist(original_words)
+            original_freq = pd.Series(original_fdist).sort_values(ascending=False)
+            
+            fig.add_trace(
+                go.Scatter(x=list(range(len(original_freq))), y=original_freq.values.tolist(),
+                          mode='lines', name='Original'),
+                row=1, col=1
+            )
+        
+        # Analyze processed texts
+        processed_words = ' '.join(texts).lower().split()
+        processed_fdist = FreqDist(processed_words)
+        processed_freq = pd.Series(processed_fdist).sort_values(ascending=False)
+        
+        fig.add_trace(
+            go.Scatter(x=list(range(len(processed_freq))), y=processed_freq.values.tolist(),
+                      mode='lines', name='Processed'),
+            row=1, col=2
+        )
+        
+        fig.update_layout(
+            title='Word Frequency Distribution',
+            template='plotly_white',
+            showlegend=True
+        )
+        
+        fig.update_xaxes(title_text='Word Rank', row=1, col=1)
+        fig.update_xaxes(title_text='Word Rank', row=1, col=2)
+        fig.update_yaxes(title_text='Frequency', row=1, col=1)
+        fig.update_yaxes(title_text='Frequency', row=1, col=2)
         
         return fig
     
@@ -121,11 +271,62 @@ class PreprocessingAnalyzer:
         
         return fig
     
+    def analyze_special_characters(self, texts: List[str]) -> Tuple[go.Figure, Dict]:
+        """Analyze special characters in texts."""
+        stats = {
+            'emojis': 0,
+            'html_tags': 0,
+            'urls': 0,
+            'mentions': 0,
+            'hashtags': 0,
+            'contractions': 0
+        }
+        
+        for text in texts:
+            # Count emojis
+            stats['emojis'] += len(emoji.emoji_list(text))
+            
+            # Count HTML tags
+            soup = BeautifulSoup(text, "html.parser")
+            stats['html_tags'] += len(soup.find_all())
+            
+            # Count URLs
+            stats['urls'] += len(re.findall(r'https?://\S+|www\.\S+', text))
+            
+            # Count mentions
+            stats['mentions'] += len(re.findall(r'@\w+', text))
+            
+            # Count hashtags
+            stats['hashtags'] += len(re.findall(r'#\w+', text))
+            
+            # Count contractions
+            stats['contractions'] += len([word for word in text.split() if "'" in word])
+        
+        # Create visualization
+        fig = go.Figure(data=[
+            go.Bar(
+                x=list(stats.keys()),
+                y=list(stats.values()),
+                text=list(stats.values()),
+                textposition='auto',
+            )
+        ])
+        
+        fig.update_layout(
+            title='Special Characters Analysis',
+            xaxis_title='Character Type',
+            yaxis_title='Count',
+            template='plotly_white'
+        )
+        
+        return fig, stats
+    
     def analyze_preprocessing_impact(self, texts: List[str]) -> Tuple[go.Figure, Dict]:
         """Analyze impact of each preprocessing step."""
         steps = [
-            'urls', 'mentions', 'hashtags', 'numbers',
-            'punctuation', 'stopwords', 'lemmatize'
+            'html', 'urls', 'mentions', 'hashtags', 'numbers',
+            'punctuation', 'emojis', 'contractions', 'unicode',
+            'stopwords', 'lemmatize'
         ]
         
         # Analyze each step's impact
@@ -174,141 +375,301 @@ class PreprocessingAnalyzer:
         
         return fig, impacts
     
+    def compare_common_terms_by_label(self, original_texts: list, processed_texts: list, labels: list, top_n: int = 20):
+        """Generate side-by-side bar charts of top N terms per label before and after preprocessing. No filtering of punctuation here; rely on preprocessing."""
+        label_names = {0: 'Bearish', 1: 'Bullish', 2: 'Neutral'}
+        
+        # Create subplots with 3 rows (one per sentiment) and 2 columns (Original vs Processed)
+        fig = make_subplots(
+            rows=3, cols=2, shared_xaxes=False, shared_yaxes=False,
+            subplot_titles=[
+                f"Original - {label_names[0]}", f"Processed - {label_names[0]}",  # Row 1: Bearish
+                f"Original - {label_names[1]}", f"Processed - {label_names[1]}",  # Row 2: Bullish
+                f"Original - {label_names[2]}", f"Processed - {label_names[2]}"   # Row 3: Neutral
+            ]
+        )
+        
+        for i, label in enumerate([0, 1, 2]):  # Process labels in order: Bearish, Bullish, Neutral
+            # Original text analysis (col 1)
+            orig_texts = [t for t, l in zip(original_texts, labels) if l == label]
+            orig_words = ' '.join(orig_texts).lower().split()
+            orig_freq = Counter(orig_words).most_common(top_n)
+            fig.add_trace(
+                go.Bar(
+                    x=[w for w, _ in orig_freq],
+                    y=[c for _, c in orig_freq],
+                    name=f'Original - {label_names[label]}'
+                ),
+                row=i+1, col=1
+            )
+            
+            # Processed text analysis (col 2)
+            proc_texts = [t for t, l in zip(processed_texts, labels) if l == label]
+            proc_words = ' '.join(proc_texts).lower().split()
+            proc_freq = Counter(proc_words).most_common(top_n)
+            fig.add_trace(
+                go.Bar(
+                    x=[w for w, _ in proc_freq],
+                    y=[c for _, c in proc_freq],
+                    name=f'Processed - {label_names[label]}'
+                ),
+                row=i+1, col=2
+            )
+        
+        fig.update_layout(
+            height=1200,
+            width=1200,
+            title_text='Top 20 Most Common Terms per Label: Original vs Processed',
+            showlegend=False,
+            template='plotly_white',
+        )
+        
+        # Update axes labels for each subplot
+        for i in range(1, 4):
+            fig.update_yaxes(title_text='Frequency', row=i, col=1)
+            fig.update_yaxes(title_text='Frequency', row=i, col=2)
+            fig.update_xaxes(title_text='Term', row=i, col=1)
+            fig.update_xaxes(title_text='Term', row=i, col=2)
+        
+        return fig
+    
     def generate_report(self) -> None:
         """Generate HTML report with preprocessing analysis."""
-        # Load data
-        train_df, test_df = load_datasets()
-        
-        # Preprocess texts
-        logger.info("Preprocessing texts...")
-        train_processed = [
-            self.preprocessor.preprocess(text)
-            for text in train_df['text']
-        ]
-        
-        # Generate visualizations
-        logger.info("Generating visualizations...")
-        
-        # 1. Text length distribution
-        length_fig = self.analyze_text_lengths(train_processed)
-        length_fig.write_html(self.output_dir / 'text_lengths.html')
-        
-        # 2. Common terms overall
-        terms_fig = self.analyze_common_terms(train_processed)
-        terms_fig.write_html(self.output_dir / 'common_terms.html')
-        
-        # 3. Common terms by sentiment
-        terms_by_sentiment_fig = self.analyze_common_terms(
-            train_processed,
-            by_label=True,
-            labels=train_df['label']
-        )
-        terms_by_sentiment_fig.write_html(self.output_dir / 'terms_by_sentiment.html')
-        
-        # 4. Preprocessing impact
-        impact_fig, impacts = self.analyze_preprocessing_impact(train_df['text'][:1000])
-        impact_fig.write_html(self.output_dir / 'preprocessing_impact.html')
-        
-        # Generate main report
-        report_html = f"""
-        <html>
-        <head>
-            <title>Text Preprocessing Analysis Report</title>
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    margin: 40px;
-                    line-height: 1.6;
-                }}
-                .section {{
-                    margin-bottom: 40px;
-                }}
-                table {{
-                    border-collapse: collapse;
-                    width: 100%;
-                    margin: 20px 0;
-                }}
-                th, td {{
-                    border: 1px solid #ddd;
-                    padding: 8px;
-                    text-align: left;
-                }}
-                th {{
-                    background-color: #f5f5f5;
-                }}
-            </style>
-        </head>
-        <body>
-            <h1>Text Preprocessing Analysis Report</h1>
+        try:
+            # Load data
+            train_df, test_df = load_datasets()
             
-            <div class="section">
-                <h2>Dataset Overview</h2>
-                <p>Training samples: {len(train_df)}</p>
-                <p>Test samples: {len(test_df)}</p>
-                <p>Label distribution:</p>
-                <ul>
-                    <li>Bearish (0): {sum(train_df['label'] == 0)} samples ({sum(train_df['label'] == 0)/len(train_df)*100:.1f}%)</li>
-                    <li>Bullish (1): {sum(train_df['label'] == 1)} samples ({sum(train_df['label'] == 1)/len(train_df)*100:.1f}%)</li>
-                    <li>Neutral (2): {sum(train_df['label'] == 2)} samples ({sum(train_df['label'] == 2)/len(train_df)*100:.1f}%)</li>
-                </ul>
-            </div>
+            # Store original texts
+            original_texts = train_df['text'].tolist()
             
-            <div class="section">
-                <h2>Text Length Analysis</h2>
-                <iframe src="./text_lengths.html" width="100%" height="600" frameborder="0"></iframe>
-            </div>
+            # Preprocess texts
+            logger.info("Preprocessing texts...")
+            train_processed = [
+                self.preprocessor.preprocess(text)
+                for text in original_texts
+            ]
+            labels = train_df['label'].tolist()
             
-            <div class="section">
-                <h2>Common Terms Analysis</h2>
-                <h3>Overall Most Common Terms</h3>
-                <iframe src="./common_terms.html" width="100%" height="600" frameborder="0"></iframe>
+            # Generate visualizations
+            logger.info("Generating visualizations...")
+            
+            # 1. Text length distribution
+            length_fig = self.analyze_text_lengths(train_processed, original_texts)
+            length_fig.write_html(self.output_dir / 'text_lengths.html')
+            
+            # 2. Vocabulary analysis
+            vocab_fig, vocab_stats = self.analyze_vocabulary(train_processed, original_texts)
+            vocab_fig.write_html(self.output_dir / 'vocabulary_analysis.html')
+            
+            # 3. Word clouds
+            self.generate_wordclouds(train_processed, original_texts)
+            
+            # 4. Word frequency distribution
+            freq_fig = self.analyze_word_frequency_distribution(train_processed, original_texts)
+            freq_fig.write_html(self.output_dir / 'word_frequency.html')
+            
+            # 5. Common terms overall
+            terms_fig = self.analyze_common_terms(train_processed)
+            terms_fig.write_html(self.output_dir / 'common_terms.html')
+            
+            # 6. Common terms by sentiment
+            terms_by_sentiment_fig = self.analyze_common_terms(
+                train_processed,
+                by_label=True,
+                labels=train_df['label']
+            )
+            terms_by_sentiment_fig.write_html(self.output_dir / 'terms_by_sentiment.html')
+            
+            # 6b. Common terms by sentiment: before vs after
+            compare_terms_fig = self.compare_common_terms_by_label(
+                original_texts, train_processed, labels, top_n=20
+            )
+            compare_terms_fig.write_html(self.output_dir / 'compare_terms_by_label.html')
+            
+            # 7. Special characters analysis
+            special_chars_fig, special_chars_stats = self.analyze_special_characters(original_texts)
+            special_chars_fig.write_html(self.output_dir / 'special_characters.html')
+            
+            # 8. Preprocessing impact
+            impact_fig, impacts = self.analyze_preprocessing_impact(original_texts[:1000])
+            impact_fig.write_html(self.output_dir / 'preprocessing_impact.html')
+            
+            # Generate main report
+            report_html = f"""
+            <html>
+            <head>
+                <title>Text Preprocessing Analysis Report</title>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        margin: 40px;
+                        line-height: 1.6;
+                    }}
+                    .section {{
+                        margin-bottom: 40px;
+                    }}
+                    table {{
+                        border-collapse: collapse;
+                        width: 100%;
+                        margin: 20px 0;
+                    }}
+                    th, td {{
+                        border: 1px solid #ddd;
+                        padding: 8px;
+                        text-align: left;
+                    }}
+                    th {{
+                        background-color: #f5f5f5;
+                    }}
+                    .comparison {{
+                        display: flex;
+                        justify-content: space-between;
+                        margin: 20px 0;
+                    }}
+                    .comparison img {{
+                        width: 48%;
+                    }}
+                </style>
+            </head>
+            <body>
+                <h1>Text Preprocessing Analysis Report</h1>
                 
-                <h3>Terms by Sentiment</h3>
-                <iframe src="./terms_by_sentiment.html" width="100%" height="600" frameborder="0"></iframe>
-            </div>
-            
-            <div class="section">
-                <h2>Preprocessing Impact Analysis</h2>
-                <iframe src="./preprocessing_impact.html" width="100%" height="600" frameborder="0"></iframe>
+                <div class="section">
+                    <h2>Dataset Overview</h2>
+                    <p>Training samples: {len(train_df)}</p>
+                    <p>Test samples: {len(test_df)}</p>
+                    <p>Label distribution:</p>
+                    <ul>
+                        <li>Bearish (0): {sum(train_df['label'] == 0)} samples ({sum(train_df['label'] == 0)/len(train_df)*100:.1f}%)</li>
+                        <li>Bullish (1): {sum(train_df['label'] == 1)} samples ({sum(train_df['label'] == 1)/len(train_df)*100:.1f}%)</li>
+                        <li>Neutral (2): {sum(train_df['label'] == 2)} samples ({sum(train_df['label'] == 2)/len(train_df)*100:.1f}%)</li>
+                    </ul>
+                </div>
                 
-                <h3>Detailed Impact Statistics</h3>
-                <table>
-                    <tr>
-                        <th>Step</th>
-                        <th>Average Tokens Removed</th>
-                        <th>Text Reduction (%)</th>
-                    </tr>
-                    {''.join(f'''
-                    <tr>
-                        <td>{step}</td>
-                        <td>{stats['avg_tokens_removed']:.2f}</td>
-                        <td>{stats['reduction_percent']:.1f}%</td>
-                    </tr>
-                    ''' for step, stats in impacts.items())}
-                </table>
-            </div>
+                <div class="section">
+                    <h2>Text Length Analysis</h2>
+                    <iframe src="./text_lengths.html" width="100%" height="600" frameborder="0"></iframe>
+                </div>
+                
+                <div class="section">
+                    <h2>Vocabulary Analysis</h2>
+                    <iframe src="./vocabulary_analysis.html" width="100%" height="600" frameborder="0"></iframe>
+                    
+                    <h3>Vocabulary Statistics</h3>
+                    <table>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Original</th>
+                            <th>Processed</th>
+                            <th>Change (%)</th>
+                        </tr>
+                        {''.join(f'''
+                        <tr>
+                            <td>{{metric}}</td>
+                            <td>{{vocab_stats['original'][metric]:.0f}}</td>
+                            <td>{{vocab_stats['processed'][metric]:.0f}}</td>
+                            <td>{{((vocab_stats['processed'][metric] - vocab_stats['original'][metric]) / vocab_stats['original'][metric] * 100):.1f}}%</td>
+                        </tr>
+                        ''' for metric in ['total_words', 'unique_words', 'avg_word_length'])}
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <h2>Word Clouds</h2>
+                    <div class="comparison">
+                        <img src="./wordcloud_original.png" alt="Original Word Cloud">
+                        <img src="./wordcloud_processed.png" alt="Processed Word Cloud">
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h2>Word Frequency Distribution</h2>
+                    <iframe src="./word_frequency.html" width="100%" height="600" frameborder="0"></iframe>
+                </div>
+                
+                <div class="section">
+                    <h2>Special Characters Analysis</h2>
+                    <iframe src="./special_characters.html" width="100%" height="600" frameborder="0"></iframe>
+                    
+                    <h3>Special Characters Statistics</h3>
+                    <table>
+                        <tr>
+                            <th>Character Type</th>
+                            <th>Count</th>
+                        </tr>
+                        {''.join(f'''
+                        <tr>
+                            <td>{{char_type}}</td>
+                            <td>{{count}}</td>
+                        </tr>
+                        ''' for char_type, count in special_chars_stats.items())}
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <h2>Common Terms Analysis</h2>
+                    <h3>Overall Most Common Terms</h3>
+                    <iframe src="./common_terms.html" width="100%" height="600" frameborder="0"></iframe>
+                    
+                    <h3>Terms by Sentiment</h3>
+                    <iframe src="./terms_by_sentiment.html" width="100%" height="600" frameborder="0"></iframe>
+                </div>
+                
+                <div class="section">
+                    <h2>Common Terms by Sentiment: Before vs After Preprocessing</h2>
+                    <iframe src="./compare_terms_by_label.html" width="100%" height="1300" frameborder="0"></iframe>
+                </div>
+                
+                <div class="section">
+                    <h2>Preprocessing Impact Analysis</h2>
+                    <iframe src="./preprocessing_impact.html" width="100%" height="600" frameborder="0"></iframe>
+                    
+                    <h3>Detailed Impact Statistics</h3>
+                    <table>
+                        <tr>
+                            <th>Step</th>
+                            <th>Average Tokens Removed</th>
+                            <th>Text Reduction (%)</th>
+                        </tr>
+                        {''.join(f'''
+                        <tr>
+                            <td>{{step}}</td>
+                            <td>{{stats['avg_tokens_removed']:.2f}}</td>
+                            <td>{{stats['reduction_percent']:.1f}}%</td>
+                        </tr>
+                        ''' for step, stats in impacts.items())}
+                    </table>
+                </div>
+                
+                <div class="section">
+                    <h2>Preprocessing Steps Applied</h2>
+                    <ul>
+                        <li>HTML tag removal</li>
+                        <li>URL removal</li>
+                        <li>Twitter mentions removal</li>
+                        <li>Hashtag processing (keeping text)</li>
+                        <li>Number handling (preserving prices)</li>
+                        <li>Punctuation removal</li>
+                        <li>Emoji removal</li>
+                        <li>Contraction expansion</li>
+                        <li>Unicode normalization</li>
+                        <li>Stopword removal (with finance-specific adjustments)</li>
+                        <li>Lemmatization</li>
+                    </ul>
+                </div>
+            </body>
+            </html>
+            """
             
-            <div class="section">
-                <h2>Preprocessing Steps Applied</h2>
-                <ul>
-                    <li>URL removal</li>
-                    <li>Twitter mentions removal</li>
-                    <li>Hashtag processing (keeping text)</li>
-                    <li>Number handling (preserving prices)</li>
-                    <li>Punctuation removal</li>
-                    <li>Stopword removal (with finance-specific adjustments)</li>
-                    <li>Lemmatization</li>
-                </ul>
-            </div>
-        </body>
-        </html>
-        """
-        
-        report_path = self.output_dir / 'preprocessing_report.html'
-        with open(report_path, 'w', encoding='utf-8') as f:
-            f.write(report_html)
-        
-        logger.info(f"Report generated at {report_path.absolute()}")
+            report_path = self.output_dir / 'preprocessing_report.html'
+            with open(report_path, 'w', encoding='utf-8') as f:
+                f.write(report_html)
+            
+            logger.info(f"Report generated at {report_path.absolute()}")
+            
+        except Exception as e:
+            logger.error(f"Error generating report: {str(e)}")
+            raise
 
 if __name__ == "__main__":
     # Generate preprocessing analysis report

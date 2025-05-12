@@ -92,7 +92,7 @@ class CrossValidator:
     def add_fold_result(
         self,
         fold: int,
-        metrics: Dict[str, float],
+        metrics: Dict[str, Any],
         model_name: str,
         **additional_info: Any
     ) -> None:
@@ -130,21 +130,35 @@ class CrossValidator:
         if not self.fold_results:
             return {}
         
-        # Get all metric names
-        metric_names = set()
+        # Extract numerical metrics from classification report
+        numerical_metrics = {}
         for result in self.fold_results:
-            metric_names.update(result['metrics'].keys())
+            metrics = result['metrics']
+            # Handle both per-class and overall metrics
+            for key, value in metrics.items():
+                if isinstance(value, dict) and 'precision' in value:
+                    # This is a per-class metric
+                    for metric_name, metric_value in value.items():
+                        if isinstance(metric_value, (int, float)):
+                            if metric_name not in numerical_metrics:
+                                numerical_metrics[metric_name] = []
+                            numerical_metrics[metric_name].append(metric_value)
+                elif isinstance(value, (int, float)):
+                    # This is an overall metric
+                    if key not in numerical_metrics:
+                        numerical_metrics[key] = []
+                    numerical_metrics[key].append(value)
         
-        # Calculate statistics
+        # Calculate statistics for each metric
         metrics_stats = {}
-        for metric in metric_names:
-            values = [r['metrics'][metric] for r in self.fold_results if metric in r['metrics']]
-            metrics_stats[metric] = {
-                'mean': float(np.mean(values)),
-                'std': float(np.std(values)),
-                'min': float(np.min(values)),
-                'max': float(np.max(values))
-            }
+        for metric, values in numerical_metrics.items():
+            if values:  # Only process if we have values
+                metrics_stats[metric] = {
+                    'mean': float(np.mean(values)),
+                    'std': float(np.std(values)),
+                    'min': float(np.min(values)),
+                    'max': float(np.max(values))
+                }
         
         return metrics_stats
     
