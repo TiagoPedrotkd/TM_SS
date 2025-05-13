@@ -56,6 +56,18 @@ class BagOfWordsExtractor:
             Feature matrix
         """
         return self.vectorizer.fit_transform(texts).toarray()
+    
+    def transform(self, texts: List[str]) -> np.ndarray:
+        """
+        Transform texts using fitted vectorizer.
+        
+        Args:
+            texts: List of preprocessed texts
+        
+        Returns:
+            Feature matrix
+        """
+        return self.vectorizer.transform(texts).toarray()
 
 class Word2VecExtractor:
     """Extract features using Word2Vec."""
@@ -105,7 +117,26 @@ class Word2VecExtractor:
             workers=4
         )
         
-        # Create document vectors by averaging word vectors
+        return self._get_doc_vectors(tokenized_texts)
+    
+    def transform(self, texts: List[str]) -> np.ndarray:
+        """
+        Transform texts using trained model.
+        
+        Args:
+            texts: List of preprocessed texts
+        
+        Returns:
+            Document vectors
+        """
+        if self.model is None:
+            raise ValueError("Model not trained. Call fit_transform first.")
+        
+        tokenized_texts = [word_tokenize(text.lower()) for text in texts]
+        return self._get_doc_vectors(tokenized_texts)
+    
+    def _get_doc_vectors(self, tokenized_texts: List[List[str]]) -> np.ndarray:
+        """Get document vectors by averaging word vectors."""
         doc_vectors = []
         for tokens in tokenized_texts:
             # Get vectors for tokens that are in vocabulary
@@ -180,6 +211,19 @@ class TransformerExtractor:
         return embeddings
     
     def fit_transform(self, texts: List[str]) -> np.ndarray:
+        """
+        Transform texts using the transformer model.
+        No fitting needed as we use a pretrained model.
+        
+        Args:
+            texts: List of preprocessed texts
+        
+        Returns:
+            Document embeddings
+        """
+        return self.transform(texts)
+    
+    def transform(self, texts: List[str]) -> np.ndarray:
         """
         Transform texts using the transformer model.
         
