@@ -59,7 +59,7 @@ class TorchClassifierWrapper(BaseEstimator, ClassifierMixin):
     def __init__(
         self,
         model: nn.Module,
-        criterion: nn.Module = nn.CrossEntropyLoss(),
+        criterion: nn.Module = None,
         optimizer_class: type = torch.optim.Adam,
         optimizer_kwargs: dict = None,
         batch_size: int = 32,
@@ -67,7 +67,6 @@ class TorchClassifierWrapper(BaseEstimator, ClassifierMixin):
         device: str = "cuda" if torch.cuda.is_available() else "cpu"
     ):
         self.model = model
-        self.criterion = criterion
         self.optimizer_class = optimizer_class
         self.optimizer_kwargs = optimizer_kwargs or {}
         self.batch_size = batch_size
@@ -79,6 +78,17 @@ class TorchClassifierWrapper(BaseEstimator, ClassifierMixin):
             self.model.parameters(),
             **self.optimizer_kwargs
         )
+    
+    def compute_class_weights(self, y: np.ndarray) -> torch.Tensor:
+        """Compute class weights based on class frequencies."""
+        classes = np.unique(y)
+        class_weights = []
+        n_samples = len(y)
+        
+        for c in classes:
+            class_weights.append(n_samples / (len(classes) * np.sum(y == c)))
+        
+        return torch.FloatTensor(class_weights).to(self.device)
     
     def fit(
         self,
@@ -95,6 +105,10 @@ class TorchClassifierWrapper(BaseEstimator, ClassifierMixin):
         
         X = X.to(self.device)
         y = y.to(self.device)
+        
+        # Compute class weights
+        class_weights = self.compute_class_weights(y.cpu().numpy())
+        self.criterion = nn.CrossEntropyLoss(weight=class_weights)
         
         # Training loop
         self.model.train()

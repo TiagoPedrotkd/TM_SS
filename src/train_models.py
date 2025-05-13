@@ -76,7 +76,8 @@ class ModelTrainer:
                 hidden_size=128,
                 num_layers=2
             ),
-            num_epochs=10,
+            optimizer_kwargs={'lr': 0.001},
+            num_epochs=15,  # Increased epochs to help with class imbalance
             batch_size=32
         )
         model.fit(X, y)
@@ -89,9 +90,10 @@ class ModelTrainer:
             model=TransformerClassifier(
                 input_size=X.shape[-1],
                 hidden_size=256,
-                dropout=0.1
+                dropout=0.2  # Increased dropout to prevent overfitting
             ),
-            num_epochs=10,
+            optimizer_kwargs={'lr': 0.001},
+            num_epochs=15,  # Increased epochs to help with class imbalance
             batch_size=32
         )
         model.fit(X, y)

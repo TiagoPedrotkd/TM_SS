@@ -197,4 +197,27 @@ class TransformerExtractor:
             batch_embeddings = self._process_batch(batch_texts)
             all_embeddings.append(batch_embeddings)
         
-        return np.vstack(all_embeddings) 
+        return np.vstack(all_embeddings)
+
+def create_feature_extractor(method: str, **kwargs) -> Union[BagOfWordsExtractor, Word2VecExtractor, TransformerExtractor]:
+    """
+    Factory function to create a feature extractor based on the specified method.
+    
+    Args:
+        method: Feature extraction method ('bow', 'word2vec', or 'transformer')
+        **kwargs: Additional arguments to pass to the extractor
+    
+    Returns:
+        Feature extractor instance
+    
+    Raises:
+        ValueError: If method is not supported
+    """
+    if method == 'bow':
+        return BagOfWordsExtractor(**kwargs)
+    elif method == 'word2vec':
+        return Word2VecExtractor(**kwargs)
+    elif method == 'transformer':
+        return TransformerExtractor(**kwargs)
+    else:
+        raise ValueError(f"Unsupported feature extraction method: {method}") 
