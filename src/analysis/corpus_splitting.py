@@ -26,9 +26,10 @@ logger = logging.getLogger(__name__)
 class CorpusSplitter:
     def __init__(self, output_dir: str = None):
         if output_dir is None:
-            # Use absolute path relative to project root
-            project_root = os.path.dirname(os.path.dirname(src_dir))
-            output_dir = os.path.join(project_root, 'results', 'corpus_splitting')
+            # Use Path for more reliable path handling
+            current_file = Path(__file__).resolve()
+            project_root = current_file.parents[2]  # Go up 2 levels from src/analysis
+            output_dir = project_root / 'results' / 'corpus_splitting'
         
         self.output_dir = Path(output_dir)
         logger.info(f"Output directory set to: {self.output_dir.absolute()}")
@@ -61,23 +62,41 @@ class CorpusSplitter:
                 x=[label_names[i] for i in train_dist.index],
                 y=train_dist.values,
                 text=[f"{v/len(train_idx)*100:.1f}%" for v in train_dist.values],
-                textposition='auto'
+                textposition='auto',
+                marker_color='rgb(55, 83, 109)'
             ),
             go.Bar(
                 name='Validation Set',
                 x=[label_names[i] for i in val_dist.index],
                 y=val_dist.values,
                 text=[f"{v/len(val_idx)*100:.1f}%" for v in val_dist.values],
-                textposition='auto'
+                textposition='auto',
+                marker_color='rgb(26, 118, 255)'
             )
         ])
         
         fig.update_layout(
-            title='Label Distribution in Random Split',
+            title={
+                'text': 'Label Distribution in Random Split',
+                'y':0.95,
+                'x':0.5,
+                'xanchor': 'center',
+                'yanchor': 'top'
+            },
             xaxis_title='Sentiment',
             yaxis_title='Count',
             template='plotly_white',
-            barmode='group'
+            barmode='group',
+            bargap=0.15,
+            bargroupgap=0.1,
+            height=500,
+            showlegend=True,
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="right",
+                x=0.99
+            )
         )
         
         stats = {
@@ -218,15 +237,15 @@ class CorpusSplitter:
         
         # 1. Random split analysis
         random_fig, random_stats = self.analyze_random_split(train_df)
-        random_fig.write_html(self.output_dir / 'random_split.html')
+        random_fig.write_html(self.output_dir / 'random_split.html', include_plotlyjs='cdn')
         
         # 2. Stratified split analysis
         stratified_fig, stratified_stats = self.analyze_stratified_split(train_df)
-        stratified_fig.write_html(self.output_dir / 'stratified_split.html')
+        stratified_fig.write_html(self.output_dir / 'stratified_split.html', include_plotlyjs='cdn')
         
         # 3. K-Fold analysis
         kfold_fig, kfold_stats = self.analyze_kfold(train_df)
-        kfold_fig.write_html(self.output_dir / 'kfold_split.html')
+        kfold_fig.write_html(self.output_dir / 'kfold_split.html', include_plotlyjs='cdn')
         
         # Generate main report
         report_html = f"""
@@ -255,7 +274,17 @@ class CorpusSplitter:
                 th {{
                     background-color: #f5f5f5;
                 }}
+                .plot-container {{
+                    width: 100%;
+                    margin: 20px 0;
+                }}
+                iframe {{
+                    border: none;
+                    width: 100%;
+                    height: 600px;
+                }}
             </style>
+            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
         </head>
         <body>
             <h1>Corpus Splitting Analysis Report</h1>
@@ -278,7 +307,9 @@ class CorpusSplitter:
                     <li>Training set: {random_stats['train_size']} samples</li>
                     <li>Validation set: {random_stats['val_size']} samples</li>
                 </ul>
-                <iframe src="./random_split.html" width="100%" height="500" frameborder="0"></iframe>
+                <div class="plot-container">
+                    <iframe src="random_split.html"></iframe>
+                </div>
             </div>
             
             <div class="section">
@@ -288,7 +319,9 @@ class CorpusSplitter:
                     <li>Training set: {stratified_stats['train_size']} samples</li>
                     <li>Validation set: {stratified_stats['val_size']} samples</li>
                 </ul>
-                <iframe src="./stratified_split.html" width="100%" height="500" frameborder="0"></iframe>
+                <div class="plot-container">
+                    <iframe src="stratified_split.html"></iframe>
+                </div>
             </div>
             
             <div class="section">
@@ -320,7 +353,9 @@ class CorpusSplitter:
                     </tr>
                     ''' for stats in kfold_stats)}
                 </table>
-                <iframe src="./kfold_split.html" width="100%" height="500" frameborder="0"></iframe>
+                <div class="plot-container">
+                    <iframe src="kfold_split.html"></iframe>
+                </div>
             </div>
             
             <div class="section">

@@ -8,23 +8,58 @@ This module provides functionality to compare different feature engineering appr
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Callable
 import numpy as np
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, cross_validate, StratifiedKFold
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report
+from sklearn.metrics import (
+    classification_report, make_scorer, 
+    precision_recall_fscore_support,
+    balanced_accuracy_score,
+    roc_auc_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    confusion_matrix
+)
 import pandas as pd
 from pathlib import Path
 import matplotlib.pyplot as plt
 import seaborn as sns
-from time import time
-from .feature_extraction import (
+import time
+import os
+import sys
+
+# Add src directory to Python path
+src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if src_dir not in sys.path:
+    sys.path.append(src_dir)
+
+from features.feature_extraction import (
     BagOfWordsExtractor,
     Word2VecExtractor,
     TransformerExtractor
 )
 
 logger = logging.getLogger(__name__)
+
+def macro_precision(y_true, y_pred):
+    return precision_score(y_true, y_pred, average='macro', zero_division=0)
+
+def macro_recall(y_true, y_pred):
+    return recall_score(y_true, y_pred, average='macro', zero_division=0)
+
+def macro_f1(y_true, y_pred):
+    return f1_score(y_true, y_pred, average='macro', zero_division=0)
+
+def weighted_precision(y_true, y_pred):
+    return precision_score(y_true, y_pred, average='weighted', zero_division=0)
+
+def weighted_recall(y_true, y_pred):
+    return recall_score(y_true, y_pred, average='weighted', zero_division=0)
+
+def weighted_f1(y_true, y_pred):
+    return f1_score(y_true, y_pred, average='weighted', zero_division=0)
 
 class FeatureComparison:
     """Compare different feature engineering approaches."""
@@ -44,6 +79,29 @@ class FeatureComparison:
         self.results = {}
         self.feature_extractors = {}
         self.features = {}
+        self.extraction_times = {}
+        
+        # Add class names for readability
+        self.class_names = {0: 'Bearish', 1: 'Bullish', 2: 'Neutral'}
+        
+        # Define scoring metrics
+        self.scoring = {
+            'balanced_accuracy': make_scorer(balanced_accuracy_score),
+            'macro_precision': make_scorer(macro_precision),
+            'macro_recall': make_scorer(macro_recall),
+            'macro_f1': make_scorer(macro_f1),
+            'weighted_precision': make_scorer(weighted_precision),
+            'weighted_recall': make_scorer(weighted_recall),
+            'weighted_f1': make_scorer(weighted_f1)
+        }
+        
+        # Add per-class metrics
+        for class_idx in range(3):
+            self.scoring.update({
+                f'precision_{self.class_names[class_idx]}': make_scorer(precision_score, labels=[class_idx], average=None),
+                f'recall_{self.class_names[class_idx]}': make_scorer(recall_score, labels=[class_idx], average=None),
+                f'f1_{self.class_names[class_idx]}': make_scorer(f1_score, labels=[class_idx], average=None)
+            })
         
     def add_bow_extractor(
         self,
@@ -98,19 +156,37 @@ class FeatureComparison:
         """Extract features using all registered extractors."""
         for name, extractor in self.feature_extractors.items():
             logger.info(f"Extracting features using {name}...")
-            start_time = time()
+            start_time = time.time()
             
             # Extract features
             features = extractor.fit_transform(texts)
             
             # Store features and timing
             self.features[name] = features
-            self.results[name] = {
-                'extraction_time': time() - start_time,
-                'feature_dim': features.shape[1]
-            }
+            self.extraction_times[name] = time.time() - start_time
             
-            logger.info(f"Extracted {features.shape[1]} features in {self.results[name]['extraction_time']:.2f} seconds")
+            logger.info(f"Extracted {features.shape[1]} features in {self.extraction_times[name]:.2f} seconds")
+    
+    def _plot_confusion_matrices(self, y_true: np.ndarray, y_pred: np.ndarray, method_name: str, save_prefix: str) -> None:
+        """Plot confusion matrix for a method."""
+        plt.figure(figsize=(8, 6))
+        cm = confusion_matrix(y_true, y_pred)
+        cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        
+        sns.heatmap(
+            cm_normalized, 
+            annot=True, 
+            fmt='.2f', 
+            cmap='Blues',
+            xticklabels=self.class_names.values(),
+            yticklabels=self.class_names.values()
+        )
+        plt.title(f'Normalized Confusion Matrix - {method_name}')
+        plt.ylabel('True Label')
+        plt.xlabel('Predicted Label')
+        plt.tight_layout()
+        plt.savefig(self.save_dir / f'{save_prefix}_confusion_matrix_{method_name}.png')
+        plt.close()
     
     def evaluate_classifiers(
         self,
@@ -119,46 +195,131 @@ class FeatureComparison:
         save_prefix: str = None
     ) -> pd.DataFrame:
         """
-        Evaluate features using logistic regression with cross-validation.
+        Evaluate all feature extractors using cross-validation.
         
         Args:
-            labels: Target labels
+            labels: List of labels
             cv_folds: Number of cross-validation folds
-            save_prefix: Prefix for saving results
+            save_prefix: Prefix for saved files
         """
-        classifier = LogisticRegression(max_iter=1000)
+        self.results = {}
+        self.class_names = {0: 'Bearish', 1: 'Bullish', 2: 'Neutral'}
+        
+        # Dictionary to store predictions for confusion matrices
+        all_predictions = {}
+        all_true_labels = {}
         
         for name, features in self.features.items():
             logger.info(f"Evaluating {name}...")
-            start_time = time()
             
-            # Perform cross-validation
-            scores = cross_val_score(
-                classifier,
-                features,
-                labels,
-                cv=cv_folds,
-                scoring='f1_weighted'
+            # Initialize classifier with class weights
+            clf = LogisticRegression(
+                max_iter=1000,
+                class_weight='balanced',
+                random_state=42
             )
             
-            # Store results
-            self.results[name].update({
-                'cv_mean': scores.mean(),
-                'cv_std': scores.std(),
-                'training_time': time() - start_time
-            })
+            # Record feature dimensionality
+            self.results[name] = {
+                'feature_dim': features.shape[1]
+            }
+            
+            # Cross-validation with multiple metrics
+            cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
+            
+            # Initialize lists to store metrics
+            metrics = {
+                'balanced_accuracy': [],
+                'macro_f1': [],
+                'weighted_f1': [],
+                'training_time': []
+            }
+            
+            # Per-class metrics
+            for class_name in self.class_names.values():
+                metrics.update({
+                    f'precision_{class_name}': [],
+                    f'recall_{class_name}': [],
+                    f'f1_{class_name}': []
+                })
+            
+            # Lists to store predictions and true labels
+            all_predictions[name] = []
+            all_true_labels[name] = []
+            
+            # Perform cross-validation
+            for train_idx, val_idx in cv.split(features, labels):
+                X_train, X_val = features[train_idx], features[val_idx]
+                y_train, y_val = labels[train_idx], labels[val_idx]
+                
+                # Time the training
+                start_time = time.time()
+                clf.fit(X_train, y_train)
+                train_time = time.time() - start_time
+                metrics['training_time'].append(train_time)
+                
+                # Make predictions
+                y_pred = clf.predict(X_val)
+                
+                # Store predictions and true labels
+                all_predictions[name].extend(y_pred)
+                all_true_labels[name].extend(y_val)
+                
+                # Calculate metrics
+                metrics['balanced_accuracy'].append(balanced_accuracy_score(y_val, y_pred))
+                metrics['macro_f1'].append(f1_score(y_val, y_pred, average='macro'))
+                metrics['weighted_f1'].append(f1_score(y_val, y_pred, average='weighted'))
+                
+                # Calculate per-class metrics
+                for class_idx, class_name in self.class_names.items():
+                    y_true_binary = (y_val == class_idx)
+                    y_pred_binary = (y_pred == class_idx)
+                    
+                    metrics[f'precision_{class_name}'].append(
+                        precision_score(y_true_binary, y_pred_binary)
+                    )
+                    metrics[f'recall_{class_name}'].append(
+                        recall_score(y_true_binary, y_pred_binary)
+                    )
+                    metrics[f'f1_{class_name}'].append(
+                        f1_score(y_true_binary, y_pred_binary)
+                    )
+            
+            # Store mean and std of metrics
+            for metric_name, values in metrics.items():
+                if metric_name == 'training_time':
+                    self.results[name][metric_name] = np.mean(values)
+                else:
+                    self.results[name][f'{metric_name}_mean'] = np.mean(values)
+                    self.results[name][f'{metric_name}_std'] = np.std(values)
+            
+            # Store extraction time
+            self.results[name]['extraction_time'] = self.extraction_times.get(name, 0)
         
-        # Create results DataFrame
+        # Convert results to DataFrame
         results_df = pd.DataFrame.from_dict(self.results, orient='index')
         
         if save_prefix:
-            # Save results
+            # Save detailed results
             results_file = self.save_dir / f'{save_prefix}_results.csv'
             results_df.to_csv(results_file)
             logger.info(f"Saved results to {results_file}")
             
+            # Get top 4 methods based on weighted F1 score
+            top_methods = results_df.nlargest(4, 'weighted_f1_mean').index
+            
+            # Plot confusion matrices only for top methods
+            for method in top_methods:
+                self._plot_confusion_matrices(
+                    np.array(all_true_labels[method]),
+                    np.array(all_predictions[method]),
+                    method,
+                    save_prefix
+                )
+            
             # Create and save comparison plots
             self._plot_comparisons(save_prefix)
+            self._plot_per_class_metrics(save_prefix)
         
         return results_df
     
@@ -166,34 +327,45 @@ class FeatureComparison:
         """Create comparison plots."""
         results_df = pd.DataFrame.from_dict(self.results, orient='index')
         
-        # Performance plot
-        plt.figure(figsize=(12, 6))
-        sns.barplot(
-            data=results_df.reset_index(),
-            x='index',
-            y='cv_mean',
-            yerr=results_df['cv_std']
-        )
-        plt.xticks(rotation=45, ha='right')
-        plt.title('Cross-validation Performance Comparison')
+        # Performance plot - now with multiple metrics
+        plt.figure(figsize=(15, 8))
+        metrics = ['balanced_accuracy', 'macro_f1', 'weighted_f1']
+        x = np.arange(len(results_df.index))
+        width = 0.25
+        
+        for i, metric in enumerate(metrics):
+            mean_col = f'{metric}_mean'
+            std_col = f'{metric}_std'
+            plt.bar(
+                x + i*width, 
+                results_df[mean_col],
+                width,
+                yerr=results_df[std_col],
+                label=metric.replace('_', ' ').title()
+            )
+        
         plt.xlabel('Feature Extractor')
-        plt.ylabel('F1 Score (weighted)')
+        plt.ylabel('Score')
+        plt.title('Performance Metrics Comparison')
+        plt.xticks(x + width, results_df.index, rotation=45, ha='right')
+        plt.legend()
         plt.tight_layout()
         plt.savefig(self.save_dir / f'{save_prefix}_performance.png')
         plt.close()
         
-        # Time comparison
-        plt.figure(figsize=(12, 6))
-        times_df = results_df[['extraction_time', 'training_time']].copy()
-        times_df.plot(kind='bar', stacked=True)
-        plt.title('Time Comparison')
-        plt.xlabel('Feature Extractor')
-        plt.ylabel('Time (seconds)')
-        plt.legend(['Feature Extraction', 'Model Training'])
-        plt.xticks(rotation=45, ha='right')
-        plt.tight_layout()
-        plt.savefig(self.save_dir / f'{save_prefix}_timing.png')
-        plt.close()
+        # Time comparison - with error handling
+        if 'extraction_time' in results_df.columns and 'training_time' in results_df.columns:
+            plt.figure(figsize=(12, 6))
+            times_df = results_df[['extraction_time', 'training_time']].copy()
+            times_df.plot(kind='bar', stacked=True)
+            plt.title('Time Comparison')
+            plt.xlabel('Feature Extractor')
+            plt.ylabel('Time (seconds)')
+            plt.legend(['Feature Extraction', 'Model Training'])
+            plt.xticks(rotation=45, ha='right')
+            plt.tight_layout()
+            plt.savefig(self.save_dir / f'{save_prefix}_timing.png')
+            plt.close()
         
         # Feature dimensionality
         plt.figure(figsize=(12, 6))
@@ -209,6 +381,32 @@ class FeatureComparison:
         plt.yscale('log')
         plt.tight_layout()
         plt.savefig(self.save_dir / f'{save_prefix}_dimensions.png')
+        plt.close()
+    
+    def _plot_per_class_metrics(self, save_prefix: str) -> None:
+        """Create per-class performance comparison plots."""
+        results_df = pd.DataFrame.from_dict(self.results, orient='index')
+        
+        # Plot per-class F1 scores
+        plt.figure(figsize=(15, 6))
+        x = np.arange(len(results_df.index))
+        width = 0.25
+        
+        for i, class_name in enumerate(self.class_names.values()):
+            plt.bar(
+                x + i*width,
+                results_df[f'f1_{class_name}_mean'],
+                width,
+                label=f'{class_name}'
+            )
+        
+        plt.xlabel('Feature Extractor')
+        plt.ylabel('F1 Score')
+        plt.title('Per-Class F1 Scores')
+        plt.xticks(x + width, results_df.index, rotation=45, ha='right')
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(self.save_dir / f'{save_prefix}_per_class_f1.png')
         plt.close()
 
 def run_comparison(
@@ -227,6 +425,13 @@ def run_comparison(
         save_prefix: Prefix for saved files
     """
     # Initialize comparison
+    if save_dir is None:
+        save_dir = 'results/feature_comparison'
+    
+    # Create results directory if it doesn't exist
+    save_path = Path(save_dir)
+    save_path.mkdir(parents=True, exist_ok=True)
+    
     comparison = FeatureComparison(save_dir=save_dir)
     
     # Add feature extractors
@@ -263,4 +468,54 @@ def run_comparison(
         save_prefix=save_prefix
     )
     
-    return results 
+    return results
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    logger.info("Starting feature comparison analysis...")
+    
+    # Load datasets
+    from utils.data_loader import load_datasets
+    train_df, test_df = load_datasets()
+    
+    # Load preprocessor
+    from preprocessing.text_processor import TextPreprocessor
+    preprocessor = TextPreprocessor()
+    
+    # Preprocess texts
+    logger.info("Preprocessing training texts...")
+    texts = [preprocessor.preprocess(text) for text in train_df['text']]
+    labels = train_df['label'].values
+    
+    # Run comparison
+    logger.info("Running feature comparison...")
+    results = run_comparison(
+        texts=texts,
+        labels=labels,
+        save_dir='results/feature_comparison',
+        save_prefix='feature_comparison'
+    )
+    
+    # Updated results printing with per-class metrics
+    logger.info("\nFeature Comparison Results:")
+    logger.info("-" * 50)
+    for method, metrics in results.iterrows():
+        logger.info(f"\nMethod: {method}")
+        logger.info(f"Balanced Accuracy: {metrics['balanced_accuracy_mean']:.3f} ± {metrics['balanced_accuracy_std']:.3f}")
+        logger.info(f"Macro F1: {metrics['macro_f1_mean']:.3f} ± {metrics['macro_f1_std']:.3f}")
+        logger.info(f"Weighted F1: {metrics['weighted_f1_mean']:.3f} ± {metrics['weighted_f1_std']:.3f}")
+        
+        # Print per-class metrics
+        logger.info("\nPer-class Performance:")
+        for class_idx in range(3):
+            class_name = {0: 'Bearish', 1: 'Bullish', 2: 'Neutral'}[class_idx]
+            logger.info(f"{class_name}:")
+            logger.info(f"  F1: {metrics[f'f1_{class_name}_mean']:.3f}")
+            logger.info(f"  Precision: {metrics[f'precision_{class_name}_mean']:.3f}")
+            logger.info(f"  Recall: {metrics[f'recall_{class_name}_mean']:.3f}")
+        
+        logger.info(f"\nFeature Dimension: {metrics['feature_dim']:,}")
+        logger.info(f"Extraction Time: {metrics['extraction_time']:.2f}s")
+        logger.info(f"Training Time: {metrics['training_time']:.2f}s")
+    
+    logger.info("\nResults and visualizations have been saved to: results/feature_comparison/") 
