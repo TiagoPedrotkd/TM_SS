@@ -176,28 +176,6 @@ class Word2VecExtractor:
         
         return self._get_doc_vectors(tokenized_texts)
     
-    def transform(self, texts: List[str]) -> np.ndarray:
-        """
-        Transform new texts using the trained Word2Vec model.
-        
-        Args:
-            texts: List of preprocessed texts
-        
-        Returns:
-            Document embeddings matrix
-        
-        Raises:
-            ValueError: If the model hasn't been trained yet
-        """
-        if self.model is None:
-            raise ValueError("Model not trained. Call fit_transform first.")
-        
-        # Tokenize texts
-        tokenized_texts = [word_tokenize(text.lower()) for text in texts]
-        
-        # Get document vectors using the trained model
-        return self._get_doc_vectors(tokenized_texts)
-    
     def _get_doc_vectors(self, tokenized_texts: List[List[str]]) -> np.ndarray:
         """Get document vectors with improved aggregation."""
         doc_vectors = []
@@ -208,16 +186,23 @@ class Word2VecExtractor:
             
             for token in tokens:
                 vector = None
+                weight = 1.0  # Default weight
+                
                 if token in self.model.wv:
                     vector = self.model.wv[token]
-                    # Get word frequency from the vocabulary - using correct API
-                    word_count = self.model.wv.get_vecattr(token, "count")
+                    # Get word frequency from vocabulary using vocab object
+                    try:
+                        # Try the new gensim API first
+                        word_count = self.model.wv.get_vecattr(token, "count")
+                    except (AttributeError, KeyError):
+                        # Fallback for older gensim versions or if count not available
+                        word_count = self.model.wv.vocab[token].count if hasattr(self.model.wv, 'vocab') else 1
                     # Calculate IDF-like weight
-                    weight = 1.0 / (1.0 + word_count)
+                    weight = 1.0 / (1.0 + np.log1p(word_count))  # Using log1p for smoother weights
                 elif self.use_fasttext and token in self.fasttext_model.wv:
                     vector = self.fasttext_model.wv[token]
                     # For FastText words, use a default weight
-                    weight = 1.0
+                    weight = 0.8  # Slightly lower weight for FastText words
                 
                 if vector is not None:
                     token_vectors.append(vector)

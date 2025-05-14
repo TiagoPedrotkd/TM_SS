@@ -41,7 +41,7 @@ class ModelTrainer:
             'transformer': {'model_name': 'bert-base-uncased', 'max_length': 128}
         }
         self.n_folds = n_folds
-        # Initialize cross-validator with correct parameters
+        # Initialize cross validator (removed stratify parameter since it's handled internally)
         self.cross_validator = CrossValidator(n_splits=n_folds)
         
         # Model configurations
@@ -55,7 +55,6 @@ class ModelTrainer:
                 'hidden_size': 256,
                 'num_layers': 2,
                 'dropout': 0.3,
-                'bidirectional': True,
                 'batch_size': 64,
                 'num_epochs': 30,
                 'learning_rate': 0.001,
@@ -123,13 +122,11 @@ class ModelTrainer:
                 input_size=X.shape[-1],
                 hidden_size=config['hidden_size'],
                 num_layers=config['num_layers'],
-                dropout=config['dropout'],
-                bidirectional=config['bidirectional']
+                dropout=config['dropout']
             ),
             optimizer_kwargs={'lr': config['learning_rate']},
             num_epochs=config['num_epochs'],
-            batch_size=config['batch_size'],
-            patience=config['patience']
+            batch_size=config['batch_size']
         )
         model.fit(X, y)
         return model
@@ -143,14 +140,11 @@ class ModelTrainer:
             model=TransformerClassifier(
                 input_size=X.shape[-1],
                 hidden_size=config['hidden_size'],
-                num_heads=config['num_heads'],
-                num_layers=config['num_layers'],
                 dropout=config['dropout']
             ),
             optimizer_kwargs={'lr': config['learning_rate']},
             num_epochs=config['num_epochs'],
-            batch_size=config['batch_size'],
-            patience=config['patience']
+            batch_size=config['batch_size']
         )
         model.fit(X, y)
         return model

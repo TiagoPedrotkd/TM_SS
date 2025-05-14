@@ -13,59 +13,36 @@ class LSTMClassifier(nn.Module):
         hidden_size: int = 128,
         num_layers: int = 2,
         num_classes: int = 3,
-        dropout: float = 0.2,
-        bidirectional: bool = True
+        dropout: float = 0.2
     ):
         super().__init__()
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-        self.bidirectional = bidirectional
-        self.num_directions = 2 if bidirectional else 1
-        
-        # LSTM layer
         self.lstm = nn.LSTM(
             input_size=input_size,
             hidden_size=hidden_size,
             num_layers=num_layers,
-            batch_first=True,
             dropout=dropout if num_layers > 1 else 0,
-            bidirectional=bidirectional
+            batch_first=True,
+            bidirectional=True  # Always use bidirectional for better performance
         )
-        
-        # Dropout layer
+        # Account for bidirectional in final layer (hidden_size * 2)
+        self.fc = nn.Linear(hidden_size * 2, num_classes)
         self.dropout = nn.Dropout(dropout)
-        
-        # Linear layers
-        lstm_out_size = hidden_size * self.num_directions
-        self.fc1 = nn.Linear(lstm_out_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, num_classes)
-        self.relu = nn.ReLU()
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Add sequence dimension if not present
         if len(x.shape) == 2:
-            x = x.unsqueeze(1)  # shape: (batch_size, 1, input_size)
+            x = x.unsqueeze(1)  # (batch_size, 1, input_size)
         
         # LSTM forward pass
-        lstm_out, _ = self.lstm(x)  # shape: (batch_size, seq_len, hidden_size * num_directions)
+        lstm_out, _ = self.lstm(x)  # lstm_out: (batch_size, seq_len, hidden_size * 2)
         
-        # Get last output
-        if self.bidirectional:
-            # Concatenate last outputs from both directions
-            last_output = torch.cat((lstm_out[:, -1, :self.hidden_size],
-                                   lstm_out[:, 0, self.hidden_size:]), dim=1)
-        else:
-            last_output = lstm_out[:, -1, :]
+        # Get final output
+        final_out = lstm_out[:, -1, :]  # (batch_size, hidden_size * 2)
+        final_out = self.dropout(final_out)
         
-        # Apply dropout
-        x = self.dropout(last_output)
-        
-        # Feed through linear layers
-        x = self.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = self.fc2(x)
-        
-        return x
+        # Project to output classes
+        logits = self.fc(final_out)
+        return logits
 
 class TransformerClassifier(nn.Module):
     def __init__(
@@ -73,50 +50,22 @@ class TransformerClassifier(nn.Module):
         input_size: int,
         num_classes: int = 3,
         hidden_size: int = 256,
-        num_heads: int = 8,
-        num_layers: int = 4,
         dropout: float = 0.1
     ):
         super().__init__()
-        
-        # Input projection
-        self.input_proj = nn.Linear(input_size, hidden_size)
-        
-        # Transformer encoder layers
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=hidden_size,
-            nhead=num_heads,
-            dim_feedforward=hidden_size * 4,
-            dropout=dropout,
-            batch_first=True
-        )
-        self.transformer_encoder = nn.TransformerEncoder(
-            encoder_layer,
-            num_layers=num_layers
-        )
-        
-        # Output layers
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.dropout = nn.Dropout(dropout)
-        self.fc = nn.Linear(hidden_size, num_classes)
+        self.fc3 = nn.Linear(hidden_size, num_classes)
+        self.relu = nn.ReLU()
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # Add sequence dimension if not present
-        if len(x.shape) == 2:
-            x = x.unsqueeze(1)  # shape: (batch_size, 1, input_size)
-        
-        # Project input to hidden size
-        x = self.input_proj(x)
-        
-        # Apply transformer encoder
-        x = self.transformer_encoder(x)
-        
-        # Pool sequence dimension (use mean pooling)
-        x = torch.mean(x, dim=1)
-        
-        # Apply final classification
+        # x shape: (batch_size, input_size)
+        x = self.relu(self.fc1(x))
         x = self.dropout(x)
-        x = self.fc(x)
-        
+        x = self.relu(self.fc2(x))
+        x = self.dropout(x)
+        x = self.fc3(x)
         return x
 
 class TorchClassifierWrapper(BaseEstimator, ClassifierMixin):
@@ -128,7 +77,6 @@ class TorchClassifierWrapper(BaseEstimator, ClassifierMixin):
         optimizer_kwargs: dict = None,
         batch_size: int = 32,
         num_epochs: int = 10,
-        patience: int = 5,
         device: str = "cuda" if torch.cuda.is_available() else "cpu"
     ):
         self.model = model
@@ -136,7 +84,6 @@ class TorchClassifierWrapper(BaseEstimator, ClassifierMixin):
         self.optimizer_kwargs = optimizer_kwargs or {}
         self.batch_size = batch_size
         self.num_epochs = num_epochs
-        self.patience = patience
         self.device = device
         
         self.model.to(self.device)
@@ -176,16 +123,9 @@ class TorchClassifierWrapper(BaseEstimator, ClassifierMixin):
         class_weights = self.compute_class_weights(y.cpu().numpy())
         self.criterion = nn.CrossEntropyLoss(weight=class_weights)
         
-        # Training loop with early stopping
-        best_loss = float('inf')
-        patience_counter = 0
-        best_model_state = None
-        
+        # Training loop
         self.model.train()
         for epoch in range(self.num_epochs):
-            epoch_loss = 0.0
-            num_batches = 0
-            
             for i in range(0, len(X), self.batch_size):
                 batch_X = X[i:i + self.batch_size]
                 batch_y = y[i:i + self.batch_size]
@@ -195,23 +135,6 @@ class TorchClassifierWrapper(BaseEstimator, ClassifierMixin):
                 loss = self.criterion(outputs, batch_y)
                 loss.backward()
                 self.optimizer.step()
-                
-                epoch_loss += loss.item()
-                num_batches += 1
-            
-            avg_loss = epoch_loss / num_batches
-            
-            # Early stopping check
-            if avg_loss < best_loss:
-                best_loss = avg_loss
-                patience_counter = 0
-                best_model_state = self.model.state_dict().copy()
-            else:
-                patience_counter += 1
-                if patience_counter >= self.patience:
-                    # Restore best model
-                    self.model.load_state_dict(best_model_state)
-                    break
         
         return self
     
