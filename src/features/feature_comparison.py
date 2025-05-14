@@ -106,51 +106,69 @@ class FeatureComparison:
     def add_bow_extractor(
         self,
         name: str = 'bow_tfidf',
-        max_features: int = 5000,
-        min_df: int = 5,
-        max_df: float = 0.95,
+        max_features: int = 10000,
+        min_df: int = 3,
+        max_df: float = 0.90,
         use_tfidf: bool = True,
-        ngram_range: tuple = (1, 2)
+        ngram_range: tuple = (1, 3),
+        norm: str = 'l2',
+        sublinear_tf: bool = True,
+        stop_words: str = 'english'
     ) -> None:
-        """Add BoW/TF-IDF feature extractor."""
+        """Add BoW/TF-IDF feature extractor with improved settings."""
         self.feature_extractors[name] = BagOfWordsExtractor(
             max_features=max_features,
             min_df=min_df,
             max_df=max_df,
             use_tfidf=use_tfidf,
-            ngram_range=ngram_range
+            ngram_range=ngram_range,
+            norm=norm,
+            sublinear_tf=sublinear_tf,
+            stop_words=stop_words
         )
     
     def add_word2vec_extractors(
         self,
-        vector_size: int = 100,
-        windows: List[int] = [5, 10],
+        vector_size: int = 300,
+        windows: List[int] = [8, 10],
         min_counts: List[int] = [2, 5],
-        architectures: List[int] = [0, 1]  # 0: CBOW, 1: Skip-gram
+        architectures: List[int] = [1],
+        negative_samples: List[int] = [10, 15],
+        epochs: List[int] = [20, 30],
+        use_fasttext: bool = True
     ) -> None:
-        """Add Word2Vec feature extractors with variations."""
+        """Add Word2Vec feature extractors with improved variations."""
         for window in windows:
             for min_count in min_counts:
                 for sg in architectures:
-                    name = f'w2v_win{window}_min{min_count}_{"sg" if sg else "cbow"}'
-                    self.feature_extractors[name] = Word2VecExtractor(
-                        vector_size=vector_size,
-                        window=window,
-                        min_count=min_count,
-                        sg=sg
-                    )
+                    for negative in negative_samples:
+                        for epoch in epochs:
+                            name = f'w2v_win{window}_min{min_count}_{"sg" if sg else "cbow"}_neg{negative}_ep{epoch}'
+                            self.feature_extractors[name] = Word2VecExtractor(
+                                vector_size=vector_size,
+                                window=window,
+                                min_count=min_count,
+                                sg=sg,
+                                negative=negative,
+                                epochs=epoch,
+                                use_fasttext=use_fasttext
+                            )
     
     def add_transformer_extractor(
         self,
-        name: str = 'bert',
-        model_name: str = 'bert-base-uncased',
-        max_length: int = 128
+        name: str = 'finbert',
+        model_name: str = 'ProsusAI/finbert',
+        max_length: int = 256,
+        pooling_strategies: List[str] = ['mean_pooling', 'cls', 'max_pooling']
     ) -> None:
-        """Add transformer feature extractor."""
-        self.feature_extractors[name] = TransformerExtractor(
-            model_name=model_name,
-            max_length=max_length
-        )
+        """Add transformer feature extractors with different pooling strategies."""
+        for pooling in pooling_strategies:
+            pool_name = f'{name}_{pooling}'
+            self.feature_extractors[pool_name] = TransformerExtractor(
+                model_name=model_name,
+                max_length=max_length,
+                pooling_strategy=pooling
+            )
     
     def extract_features(self, texts: List[str]) -> None:
         """Extract features using all registered extractors."""
@@ -415,49 +433,54 @@ def run_comparison(
     save_dir: str = None,
     save_prefix: str = 'comparison'
 ) -> pd.DataFrame:
-    """
-    Run complete feature engineering comparison.
-    
-    Args:
-        texts: List of preprocessed texts
-        labels: List of labels
-        save_dir: Directory to save results
-        save_prefix: Prefix for saved files
-    """
-    # Initialize comparison
+    """Run complete feature engineering comparison."""
     if save_dir is None:
         save_dir = 'results/feature_comparison'
     
-    # Create results directory if it doesn't exist
     save_path = Path(save_dir)
     save_path.mkdir(parents=True, exist_ok=True)
     
     comparison = FeatureComparison(save_dir=save_dir)
     
-    # Add feature extractors
+    # Add improved BoW/TF-IDF extractors
     comparison.add_bow_extractor(
-        name='tfidf',
+        name='tfidf_improved',
         use_tfidf=True,
-        ngram_range=(1, 2)
+        max_features=10000,
+        min_df=3,
+        max_df=0.90,
+        ngram_range=(1, 3),
+        sublinear_tf=True,
+        norm='l2',
+        stop_words='english'
     )
     comparison.add_bow_extractor(
-        name='bow',
+        name='bow_improved',
         use_tfidf=False,
-        ngram_range=(1, 1)
+        max_features=10000,
+        min_df=3,
+        max_df=0.90,
+        ngram_range=(1, 3),
+        stop_words='english'
     )
     
-    # Add Word2Vec variations
+    # Add improved Word2Vec variations
     comparison.add_word2vec_extractors(
-        vector_size=100,
-        windows=[5, 10],
+        vector_size=300,
+        windows=[8, 10],
         min_counts=[2, 5],
-        architectures=[0, 1]  # CBOW and Skip-gram
+        architectures=[1],  # Skip-gram
+        negative_samples=[10, 15],
+        epochs=[20, 30],
+        use_fasttext=True
     )
     
-    # Add transformer
+    # Add FinBERT with different pooling strategies
     comparison.add_transformer_extractor(
-        name='bert',
-        model_name='bert-base-uncased'
+        name='finbert',
+        model_name='ProsusAI/finbert',
+        max_length=256,
+        pooling_strategies=['mean_pooling', 'cls', 'max_pooling']
     )
     
     # Extract features and evaluate

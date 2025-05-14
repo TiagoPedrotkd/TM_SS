@@ -29,8 +29,8 @@ logger = logging.getLogger(__name__)
 class FeatureAnalyzer:
     def __init__(self, output_dir: str = None):
         if output_dir is None:
-            # Use absolute path relative to project root
-            project_root = os.path.dirname(os.path.dirname(src_dir))
+            # Use TM_SS/results directory
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             output_dir = os.path.join(project_root, 'results', 'feature_analysis')
         
         self.output_dir = Path(output_dir)
@@ -218,7 +218,8 @@ class FeatureAnalyzer:
             method_stats[method] = stats
             
             # Save extractor configuration
-            extractor.save(method)
+            config = extractor.save(method)
+            method_stats[method].update(config)  # Merge configuration into stats
         
         # Generate main report
         report_html = f"""
@@ -274,12 +275,23 @@ class FeatureAnalyzer:
                     <li>Standard deviation range: [{method_stats['bow']['std_range'][0]:.4f}, {method_stats['bow']['std_range'][1]:.4f}]</li>
                     <li>Sparsity: {method_stats['bow']['sparsity']*100:.1f}%</li>
                 </ul>
+                <p>Configuration:</p>
+                <ul>
+                    <li>Max features: {method_stats['bow']['max_features']}</li>
+                    <li>N-gram range: {method_stats['bow']['ngram_range']}</li>
+                    <li>Min document frequency: {method_stats['bow']['min_df']}</li>
+                    <li>Max document frequency: {method_stats['bow']['max_df']}</li>
+                    <li>Vocabulary size: {method_stats['bow']['vocabulary_size']}</li>
+                    <li>Normalization: {method_stats['bow'].get('norm', 'l2')}</li>
+                    <li>Sublinear TF: {method_stats['bow'].get('sublinear_tf', True)}</li>
+                    <li>Stop words: {method_stats['bow'].get('stop_words', 'english')}</li>
+                </ul>
                 <iframe src="./bow_stats.html" width="100%" height="400" frameborder="0"></iframe>
                 <h4>Feature Space Visualization</h4>
                 <iframe src="./bow_pca.html" width="100%" height="400" frameborder="0"></iframe>
                 <iframe src="./bow_tsne.html" width="100%" height="400" frameborder="0"></iframe>
                 
-                <h3>Word2Vec</h3>
+                <h3>Word2Vec with FastText</h3>
                 <p>Statistics:</p>
                 <ul>
                     <li>Feature dimension: {method_stats['word2vec']['dimension']}</li>
@@ -287,18 +299,37 @@ class FeatureAnalyzer:
                     <li>Standard deviation range: [{method_stats['word2vec']['std_range'][0]:.4f}, {method_stats['word2vec']['std_range'][1]:.4f}]</li>
                     <li>Sparsity: {method_stats['word2vec']['sparsity']*100:.1f}%</li>
                 </ul>
+                <p>Configuration:</p>
+                <ul>
+                    <li>Vector size: {method_stats['word2vec']['vector_size']}</li>
+                    <li>Window size: {method_stats['word2vec']['window']}</li>
+                    <li>Min word count: {method_stats['word2vec']['min_count']}</li>
+                    <li>Training algorithm: {'Skip-gram' if method_stats['word2vec']['sg'] == 1 else 'CBOW'}</li>
+                    <li>Vocabulary size: {method_stats['word2vec']['vocabulary_size']}</li>
+                    <li>Negative samples: {method_stats['word2vec'].get('negative', 10)}</li>
+                    <li>Training epochs: {method_stats['word2vec'].get('epochs', 20)}</li>
+                    <li>FastText backup: {method_stats['word2vec'].get('use_fasttext', True)}</li>
+                </ul>
                 <iframe src="./word2vec_stats.html" width="100%" height="400" frameborder="0"></iframe>
                 <h4>Feature Space Visualization</h4>
                 <iframe src="./word2vec_pca.html" width="100%" height="400" frameborder="0"></iframe>
                 <iframe src="./word2vec_tsne.html" width="100%" height="400" frameborder="0"></iframe>
                 
-                <h3>Transformer (BERT)</h3>
+                <h3>Transformer (FinBERT)</h3>
                 <p>Statistics:</p>
                 <ul>
                     <li>Feature dimension: {method_stats['transformer']['dimension']}</li>
                     <li>Mean range: [{method_stats['transformer']['mean_range'][0]:.4f}, {method_stats['transformer']['mean_range'][1]:.4f}]</li>
                     <li>Standard deviation range: [{method_stats['transformer']['std_range'][0]:.4f}, {method_stats['transformer']['std_range'][1]:.4f}]</li>
                     <li>Sparsity: {method_stats['transformer']['sparsity']*100:.1f}%</li>
+                </ul>
+                <p>Configuration:</p>
+                <ul>
+                    <li>Model name: {method_stats['transformer']['model_name']}</li>
+                    <li>Max sequence length: {method_stats['transformer']['max_length']}</li>
+                    <li>Batch size: {method_stats['transformer']['batch_size']}</li>
+                    <li>Hidden size: {method_stats['transformer']['hidden_size']}</li>
+                    <li>Pooling strategy: {method_stats['transformer'].get('pooling_strategy', 'mean_pooling')}</li>
                 </ul>
                 <iframe src="./transformer_stats.html" width="100%" height="400" frameborder="0"></iframe>
                 <h4>Feature Space Visualization</h4>
@@ -309,10 +340,10 @@ class FeatureAnalyzer:
             <div class="section">
                 <h2>Recommendations</h2>
                 <ul>
-                    <li>BoW/TF-IDF provides interpretable features but high sparsity</li>
-                    <li>Word2Vec captures semantic relationships with dense representations</li>
-                    <li>BERT provides rich contextual embeddings but higher computational cost</li>
-                    <li>Consider using BERT for best performance, or Word2Vec for a good balance</li>
+                    <li>BoW/TF-IDF with improved settings (trigrams, sublinear TF) provides better interpretable features</li>
+                    <li>Word2Vec with FastText backup ensures better handling of out-of-vocabulary words</li>
+                    <li>FinBERT provides domain-specific contextual embeddings for financial text</li>
+                    <li>Consider using FinBERT with mean pooling for best performance, or Word2Vec+FastText for a good balance</li>
                 </ul>
             </div>
         </body>

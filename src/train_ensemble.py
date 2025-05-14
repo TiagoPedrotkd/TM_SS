@@ -115,15 +115,76 @@ class EnsembleTrainer:
         self.preprocessor = TextPreprocessor()
         self.n_folds = n_folds
         
-        # Define model configurations
-        self.models = [
-            ('bow_lstm', 0.35),      # Higher weight due to good overall performance
-            ('bow_transformer', 0.35),  # Higher weight for strong precision
-            ('transformer_knn', 0.3)   # Lower weight but adds diversity
+        # Enhanced model configurations with more combinations
+        self.model_configs = [
+            {
+                'name': 'bow_lstm',
+                'feature_type': 'bow',
+                'model_type': 'lstm',
+                'initial_weight': 0.2  # Initial weights will be optimized
+            },
+            {
+                'name': 'bow_transformer',
+                'feature_type': 'bow',
+                'model_type': 'transformer',
+                'initial_weight': 0.2
+            },
+            {
+                'name': 'word2vec_lstm',
+                'feature_type': 'word2vec',
+                'model_type': 'lstm',
+                'initial_weight': 0.2
+            },
+            {
+                'name': 'transformer_knn',
+                'feature_type': 'transformer',
+                'model_type': 'knn',
+                'initial_weight': 0.2
+            },
+            {
+                'name': 'word2vec_transformer',
+                'feature_type': 'word2vec',
+                'model_type': 'transformer',
+                'initial_weight': 0.2
+            }
         ]
     
+    def optimize_weights(
+        self,
+        models: List[Tuple[BaseEstimator, float]],
+        X_val: Dict[str, np.ndarray],
+        y_val: np.ndarray,
+        n_trials: int = 100
+    ) -> List[float]:
+        """Optimize ensemble weights using validation performance."""
+        best_weights = None
+        best_score = 0
+        
+        # Initialize weights with model configs
+        initial_weights = [config['initial_weight'] for config in self.model_configs]
+        
+        for _ in range(n_trials):
+            # Generate random weights that sum to 1
+            weights = np.random.dirichlet(np.ones(len(models)))
+            
+            # Create temporary ensemble with these weights
+            temp_ensemble = EnsembleClassifier(
+                [(model, weight) for (model, _), weight in zip(models, weights)],
+                voting='soft'
+            )
+            
+            # Get predictions
+            y_pred = temp_ensemble.predict(X_val)
+            score = classification_report(y_val, y_pred, output_dict=True)['macro avg']['f1-score']
+            
+            if score > best_score:
+                best_score = score
+                best_weights = weights
+        
+        return best_weights if best_weights is not None else initial_weights
+    
     def prepare_features(self) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray], np.ndarray]:
-        """Prepare features for all models."""
+        """Prepare features for all models with enhanced feature types."""
         # Load and preprocess data
         train_df, test_df = load_datasets()
         
@@ -134,27 +195,38 @@ class EnsembleTrainer:
         # Extract features for each model type
         train_features = {}
         test_features = {}
-        self.extractors = {}  # Store fitted extractors
+        self.extractors = {}
         
         feature_configs = {
-            'bow': {'max_features': 5000, 'ngram_range': (1, 2)},
-            'transformer': {'model_name': 'bert-base-uncased', 'max_length': 128}
+            'bow': {
+                'max_features': 10000,
+                'ngram_range': (1, 3),
+                'use_tfidf': True,
+                'sublinear_tf': True
+            },
+            'word2vec': {
+                'vector_size': 300,
+                'window': 8,
+                'min_count': 2,
+                'sg': 1,
+                'negative': 10,
+                'epochs': 20
+            },
+            'transformer': {
+                'model_name': 'ProsusAI/finbert',
+                'max_length': 256,
+                'pooling_strategy': 'mean_pooling'
+            }
         }
         
         for feat_type, config in feature_configs.items():
             logger.info(f"Extracting {feat_type} features...")
             extractor = create_feature_extractor(method=feat_type, **config)
-            # Fit and transform on training data
             train_features[feat_type] = extractor.fit_transform(train_texts)
-            # Transform test data using fitted extractor
             test_features[feat_type] = extractor.transform(test_texts)
             self.extractors[feat_type] = extractor
         
-        return (
-            train_features,
-            test_features,
-            train_df['label'].values
-        )
+        return train_features, test_features, train_df['label'].values
     
     def create_confusion_matrix_plot(self, conf_matrix: np.ndarray, title: str) -> go.Figure:
         """Create a plotly confusion matrix visualization."""
@@ -293,7 +365,7 @@ class EnsembleTrainer:
                         <th>Model</th>
                         <th>Weight</th>
                     </tr>
-                    {''.join(f"<tr><td>{name}</td><td>{weight}</td></tr>" for name, weight in self.models)}
+                    {''.join(f"<tr><td>{name}</td><td>{weight}</td></tr>" for name, weight in self.model_configs)}
                 </table>
             </div>
             
@@ -332,13 +404,16 @@ class EnsembleTrainer:
             f.write(html_content)
     
     def train_and_evaluate(self) -> None:
-        """Train and evaluate the ensemble model using cross-validation."""
+        """Train and evaluate ensemble with optimized weights."""
         logger.info("Preparing features...")
         train_features, test_features, train_labels = self.prepare_features()
         
         # Initialize cross-validation
         cv_results = []
         skf = StratifiedKFold(n_splits=self.n_folds, shuffle=True, random_state=42)
+        
+        # Store optimized weights for each fold
+        fold_weights = []
         
         # Perform cross-validation
         logger.info(f"\nPerforming {self.n_folds}-fold cross-validation...")
@@ -358,9 +433,9 @@ class EnsembleTrainer:
             
             # Train models for this fold
             models = []
-            for model_name, weight in self.models:
-                feat_type = model_name.split('_')[0]
-                model_type = model_name.split('_')[1]
+            for config in self.model_configs:
+                feat_type = config['feature_type']
+                model_type = config['model_type']
                 
                 if model_type == 'lstm':
                     model = self.base_trainer.train_lstm(
@@ -378,19 +453,32 @@ class EnsembleTrainer:
                         fold_train_labels
                     )
                 
-                models.append((model, weight))
+                models.append((model, config['initial_weight']))
             
-            # Create and evaluate ensemble
-            ensemble = EnsembleClassifier(models, voting='soft')
+            # Optimize weights using validation set
+            logger.info("Optimizing ensemble weights...")
+            ensemble_val_features = {
+                config['name']: fold_val_features[config['feature_type']]
+                for config in self.model_configs
+            }
+            
+            optimized_weights = self.optimize_weights(
+                models,
+                ensemble_val_features,
+                fold_val_labels
+            )
+            fold_weights.append(optimized_weights)
+            
+            # Create ensemble with optimized weights
+            ensemble = EnsembleClassifier(
+                [(model, weight) for (model, _), weight in zip(models, optimized_weights)],
+                voting='soft'
+            )
             
             # Prepare features dictionary for ensemble
             ensemble_train_features = {
-                name: fold_train_features[name.split('_')[0]]
-                for name, _ in self.models
-            }
-            ensemble_val_features = {
-                name: fold_val_features[name.split('_')[0]]
-                for name, _ in self.models
+                config['name']: fold_train_features[config['feature_type']]
+                for config in self.model_configs
             }
             
             # Train and evaluate
@@ -402,14 +490,19 @@ class EnsembleTrainer:
             cv_results.append(fold_report)
             
             logger.info(f"Fold {fold} Results:")
+            logger.info(f"Optimized weights: {dict(zip([c['name'] for c in self.model_configs], optimized_weights))}")
             logger.info(classification_report(fold_val_labels, val_predictions))
+        
+        # Calculate final weights as average of fold weights
+        final_weights = np.mean(fold_weights, axis=0)
+        logger.info(f"\nFinal ensemble weights: {dict(zip([c['name'] for c in self.model_configs], final_weights))}")
         
         # Train final model on all training data
         logger.info("\nTraining final model on all data...")
         final_models = []
-        for model_name, weight in self.models:
-            feat_type = model_name.split('_')[0]
-            model_type = model_name.split('_')[1]
+        for config, weight in zip(self.model_configs, final_weights):
+            feat_type = config['feature_type']
+            model_type = config['model_type']
             
             if model_type == 'lstm':
                 model = self.base_trainer.train_lstm(
@@ -433,12 +526,12 @@ class EnsembleTrainer:
         
         # Prepare features dictionary for final ensemble
         final_train_features = {
-            name: train_features[name.split('_')[0]]
-            for name, _ in self.models
+            config['name']: train_features[config['feature_type']]
+            for config in self.model_configs
         }
         final_test_features = {
-            name: test_features[name.split('_')[0]]
-            for name, _ in self.models
+            config['name']: test_features[config['feature_type']]
+            for config in self.model_configs
         }
         
         # Train final ensemble and generate predictions
@@ -465,7 +558,7 @@ class EnsembleTrainer:
         results = {
             'cross_validation_results': cv_results,
             'final_confusion_matrix': final_conf_matrix.tolist(),
-            'model_weights': {name: weight for name, weight in self.models}
+            'model_weights': {name: weight for name, weight in self.model_configs}
         }
         
         with open(self.output_dir / 'detailed_results.json', 'w') as f:

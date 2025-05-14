@@ -1,0 +1,127 @@
+
+        <html>
+        <head>
+            <title>Feature Analysis Report</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 40px;
+                    line-height: 1.6;
+                }
+                .section {
+                    margin-bottom: 40px;
+                }
+                table {
+                    border-collapse: collapse;
+                    width: 100%;
+                    margin: 20px 0;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f5f5f5;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Feature Analysis Report</h1>
+            
+            <div class="section">
+                <h2>Dataset Overview</h2>
+                <p>Number of samples: 9543</p>
+                <p>Label distribution:</p>
+                <ul>
+                    <li>Bearish (0): 1442 samples (15.1%)</li>
+                    <li>Bullish (1): 1923 samples (20.2%)</li>
+                    <li>Neutral (2): 6178 samples (64.7%)</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>Feature Extraction Methods</h2>
+                
+                <h3>Bag of Words (TF-IDF)</h3>
+                <p>Statistics:</p>
+                <ul>
+                    <li>Feature dimension: 5000</li>
+                    <li>Mean range: [0.0001, 0.0231]</li>
+                    <li>Standard deviation range: [0.0050, 0.0660]</li>
+                    <li>Sparsity: 99.9%</li>
+                </ul>
+                <p>Configuration:</p>
+                <ul>
+                    <li>Max features: 5000</li>
+                    <li>N-gram range: (1, 2)</li>
+                    <li>Min document frequency: 3</li>
+                    <li>Max document frequency: 0.9</li>
+                    <li>Vocabulary size: 5000</li>
+                    <li>Normalization: l2</li>
+                    <li>Sublinear TF: True</li>
+                    <li>Stop words: english</li>
+                </ul>
+                <iframe src="./bow_stats.html" width="100%" height="400" frameborder="0"></iframe>
+                <h4>Feature Space Visualization</h4>
+                <iframe src="./bow_pca.html" width="100%" height="400" frameborder="0"></iframe>
+                <iframe src="./bow_tsne.html" width="100%" height="400" frameborder="0"></iframe>
+                
+                <h3>Word2Vec with FastText</h3>
+                <p>Statistics:</p>
+                <ul>
+                    <li>Feature dimension: 100</li>
+                    <li>Mean range: [-0.2007, 0.1457]</li>
+                    <li>Standard deviation range: [0.0460, 0.1329]</li>
+                    <li>Sparsity: 0.1%</li>
+                </ul>
+                <p>Configuration:</p>
+                <ul>
+                    <li>Vector size: 100</li>
+                    <li>Window size: 5</li>
+                    <li>Min word count: 2</li>
+                    <li>Training algorithm: Skip-gram</li>
+                    <li>Vocabulary size: 6548</li>
+                    <li>Negative samples: 10</li>
+                    <li>Training epochs: 20</li>
+                    <li>FastText backup: True</li>
+                </ul>
+                <iframe src="./word2vec_stats.html" width="100%" height="400" frameborder="0"></iframe>
+                <h4>Feature Space Visualization</h4>
+                <iframe src="./word2vec_pca.html" width="100%" height="400" frameborder="0"></iframe>
+                <iframe src="./word2vec_tsne.html" width="100%" height="400" frameborder="0"></iframe>
+                
+                <h3>Transformer (FinBERT)</h3>
+                <p>Statistics:</p>
+                <ul>
+                    <li>Feature dimension: 768</li>
+                    <li>Mean range: [-0.4646, 0.0880]</li>
+                    <li>Standard deviation range: [0.0164, 0.0952]</li>
+                    <li>Sparsity: 0.0%</li>
+                </ul>
+                <p>Configuration:</p>
+                <ul>
+                    <li>Model name: bert-base-uncased</li>
+                    <li>Max sequence length: 128</li>
+                    <li>Batch size: 32</li>
+                    <li>Hidden size: 768</li>
+                    <li>Pooling strategy: mean_pooling</li>
+                </ul>
+                <iframe src="./transformer_stats.html" width="100%" height="400" frameborder="0"></iframe>
+                <h4>Feature Space Visualization</h4>
+                <iframe src="./transformer_pca.html" width="100%" height="400" frameborder="0"></iframe>
+                <iframe src="./transformer_tsne.html" width="100%" height="400" frameborder="0"></iframe>
+            </div>
+            
+            <div class="section">
+                <h2>Recommendations</h2>
+                <ul>
+                    <li>BoW/TF-IDF with improved settings (trigrams, sublinear TF) provides better interpretable features</li>
+                    <li>Word2Vec with FastText backup ensures better handling of out-of-vocabulary words</li>
+                    <li>FinBERT provides domain-specific contextual embeddings for financial text</li>
+                    <li>Consider using FinBERT with mean pooling for best performance, or Word2Vec+FastText for a good balance</li>
+                </ul>
+            </div>
+        </body>
+        </html>
+        

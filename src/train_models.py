@@ -6,13 +6,17 @@ import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.utils.class_weight import compute_class_weight
 import torch
+import torch.nn as nn
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import logging
 from pathlib import Path
 import json
 from typing import Dict, Any, Tuple, List
+from collections import Counter
 
 from utils.data_loader import load_datasets
 from preprocessing.text_processor import TextPreprocessor
@@ -37,14 +41,55 @@ class ModelTrainer:
             'transformer': {'model_name': 'bert-base-uncased', 'max_length': 128}
         }
         self.n_folds = n_folds
+        # Initialize cross-validator with correct parameters
         self.cross_validator = CrossValidator(n_splits=n_folds)
+        
+        # Model configurations
+        self.model_configs = {
+            'knn': {
+                'n_neighbors': 5,
+                'weights': 'distance',
+                'metric': 'cosine'  # Better for text features
+            },
+            'lstm': {
+                'hidden_size': 256,
+                'num_layers': 2,
+                'dropout': 0.3,
+                'bidirectional': True,
+                'batch_size': 64,
+                'num_epochs': 30,
+                'learning_rate': 0.001,
+                'patience': 5  # For early stopping
+            },
+            'transformer': {
+                'hidden_size': 512,
+                'num_heads': 8,
+                'num_layers': 4,
+                'dropout': 0.2,
+                'batch_size': 32,
+                'num_epochs': 30,
+                'learning_rate': 0.0001,
+                'patience': 5  # For early stopping
+            }
+        }
     
     def prepare_data(self) -> Tuple[Dict[str, np.ndarray], np.ndarray]:
         """Prepare data with different feature extraction methods."""
         # Load data
         train_df, test_df = load_datasets()
         
-        # Preprocess texts
+        # Calculate class weights for handling imbalance
+        class_weights = compute_class_weight(
+            class_weight='balanced',
+            classes=np.unique(train_df['label']),
+            y=train_df['label']
+        )
+        self.class_weights = torch.FloatTensor(class_weights)
+        
+        # Log class distribution
+        class_dist = Counter(train_df['label'])
+        logger.info(f"Class distribution: {class_dist}")
+        
         logger.info("Preprocessing texts...")
         processed_texts = [
             self.preprocessor.preprocess(text)
@@ -63,22 +108,28 @@ class ModelTrainer:
     def train_knn(self, X: np.ndarray, y: np.ndarray) -> KNeighborsClassifier:
         """Train KNN classifier."""
         logger.info("\nTraining KNN classifier...")
-        model = KNeighborsClassifier(n_neighbors=5, weights='distance')
+        config = self.model_configs['knn']
+        model = KNeighborsClassifier(**config)
         model.fit(X, y)
         return model
     
     def train_lstm(self, X: np.ndarray, y: np.ndarray) -> TorchClassifierWrapper:
         """Train LSTM classifier."""
         logger.info("\nTraining LSTM classifier...")
+        config = self.model_configs['lstm']
+        
         model = TorchClassifierWrapper(
             model=LSTMClassifier(
                 input_size=X.shape[-1],
-                hidden_size=128,
-                num_layers=2
+                hidden_size=config['hidden_size'],
+                num_layers=config['num_layers'],
+                dropout=config['dropout'],
+                bidirectional=config['bidirectional']
             ),
-            optimizer_kwargs={'lr': 0.001},
-            num_epochs=15,  # Increased epochs to help with class imbalance
-            batch_size=32
+            optimizer_kwargs={'lr': config['learning_rate']},
+            num_epochs=config['num_epochs'],
+            batch_size=config['batch_size'],
+            patience=config['patience']
         )
         model.fit(X, y)
         return model
@@ -86,15 +137,20 @@ class ModelTrainer:
     def train_transformer(self, X: np.ndarray, y: np.ndarray) -> TorchClassifierWrapper:
         """Train Transformer classifier."""
         logger.info("\nTraining Transformer classifier...")
+        config = self.model_configs['transformer']
+        
         model = TorchClassifierWrapper(
             model=TransformerClassifier(
                 input_size=X.shape[-1],
-                hidden_size=256,
-                dropout=0.2  # Increased dropout to prevent overfitting
+                hidden_size=config['hidden_size'],
+                num_heads=config['num_heads'],
+                num_layers=config['num_layers'],
+                dropout=config['dropout']
             ),
-            optimizer_kwargs={'lr': 0.001},
-            num_epochs=15,  # Increased epochs to help with class imbalance
-            batch_size=32
+            optimizer_kwargs={'lr': config['learning_rate']},
+            num_epochs=config['num_epochs'],
+            batch_size=config['batch_size'],
+            patience=config['patience']
         )
         model.fit(X, y)
         return model
