@@ -3,6 +3,7 @@ Feature extraction module implementing different approaches:
 1. Bag of Words (BoW) / TF-IDF
 2. Word2Vec
 3. Transformer (BERT)
+4. Combined Features
 """
 
 import numpy as np
@@ -242,23 +243,23 @@ class Word2VecExtractor:
         return config
 
 class TransformerExtractor:
-    """Extract features using a transformer model."""
+    """Extract features using transformer models with improved FinBERT support."""
     
     def __init__(
         self,
-        model_name: str = 'ProsusAI/finbert',  # Changed to correct FinBERT model
-        max_length: int = 256,  # Increased sequence length
+        model_name: str = 'ProsusAI/finbert',
+        max_length: int = 256,
         batch_size: int = 32,
-        pooling_strategy: str = 'mean_pooling'  # Add pooling options
+        pooling_strategy: str = 'mean_pooling'
     ):
         """
-        Initialize transformer extractor with improved configuration.
+        Initialize transformer extractor.
         
         Args:
-            model_name: Name of the pretrained model to use (default: ProsusAI/finbert)
+            model_name: Name of the pretrained model
             max_length: Maximum sequence length
             batch_size: Batch size for processing
-            pooling_strategy: How to pool token embeddings ('cls', 'mean_pooling', 'max_pooling')
+            pooling_strategy: Pooling strategy ('mean_pooling', 'cls', or 'max_pooling')
         """
         self.model_name = model_name
         self.max_length = max_length
@@ -266,6 +267,7 @@ class TransformerExtractor:
         self.pooling_strategy = pooling_strategy
         
         # Load tokenizer and model
+        logger.info(f"Loading {model_name} model and tokenizer...")
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModel.from_pretrained(model_name)
         
@@ -363,25 +365,95 @@ class TransformerExtractor:
         }
         return config
 
-def create_feature_extractor(method: str, **kwargs) -> Union[BagOfWordsExtractor, Word2VecExtractor, TransformerExtractor]:
-    """
-    Factory function to create a feature extractor based on the specified method.
+class CombinedFeatureExtractor:
+    """Extract and combine multiple types of features."""
     
-    Args:
-        method: Feature extraction method ('bow', 'word2vec', or 'transformer')
-        **kwargs: Additional arguments to pass to the extractor
+    def __init__(
+        self,
+        extractors: List[Union[BagOfWordsExtractor, Word2VecExtractor, TransformerExtractor]],
+        weights: Optional[List[float]] = None
+    ):
+        """
+        Initialize combined feature extractor.
+        
+        Args:
+            extractors: List of feature extractors to combine
+            weights: Optional weights for each extractor (default: equal weights)
+        """
+        self.extractors = extractors
+        if weights is None:
+            self.weights = [1.0 / len(extractors)] * len(extractors)
+        else:
+            if len(weights) != len(extractors):
+                raise ValueError("Number of weights must match number of extractors")
+            # Normalize weights to sum to 1
+            total = sum(weights)
+            self.weights = [w / total for w in weights]
     
-    Returns:
-        Feature extractor instance
+    def fit_transform(self, texts: List[str]) -> np.ndarray:
+        """
+        Fit all extractors and combine their features.
+        
+        Args:
+            texts: List of preprocessed texts
+        
+        Returns:
+            Combined feature matrix
+        """
+        # Get features from each extractor
+        all_features = []
+        for extractor in self.extractors:
+            features = extractor.fit_transform(texts)
+            # Normalize features
+            features = normalize(features)
+            all_features.append(features)
+        
+        # Combine features with weights
+        combined = np.hstack([
+            feat * weight for feat, weight in zip(all_features, self.weights)
+        ])
+        
+        return combined
     
-    Raises:
-        ValueError: If method is not supported
-    """
+    def transform(self, texts: List[str]) -> np.ndarray:
+        """
+        Transform texts using all fitted extractors.
+        
+        Args:
+            texts: List of preprocessed texts
+        
+        Returns:
+            Combined feature matrix
+        """
+        # Get features from each extractor
+        all_features = []
+        for extractor in self.extractors:
+            features = extractor.transform(texts)
+            # Normalize features
+            features = normalize(features)
+            all_features.append(features)
+        
+        # Combine features with weights
+        combined = np.hstack([
+            feat * weight for feat, weight in zip(all_features, self.weights)
+        ])
+        
+        return combined
+
+def create_feature_extractor(method: str, **kwargs) -> Union[BagOfWordsExtractor, Word2VecExtractor, TransformerExtractor, CombinedFeatureExtractor]:
+    """Create feature extractor based on method name."""
     if method == 'bow':
         return BagOfWordsExtractor(**kwargs)
     elif method == 'word2vec':
         return Word2VecExtractor(**kwargs)
     elif method == 'transformer':
         return TransformerExtractor(**kwargs)
+    elif method == 'combined':
+        # Extract extractors and weights from kwargs
+        extractors = kwargs.pop('extractors', None)
+        weights = kwargs.pop('weights', None)
+        if extractors is None:
+            raise ValueError("Must provide 'extractors' for combined method")
+        return CombinedFeatureExtractor(extractors=extractors, weights=weights)
     else:
-        raise ValueError(f"Unsupported feature extraction method: {method}") 
+        raise ValueError(f"Unknown feature extraction method: {method}") 

@@ -20,6 +20,7 @@ from utils.data_loader import load_datasets
 from preprocessing.text_processor import TextPreprocessor
 from features.feature_extraction import create_feature_extractor
 from models.classifiers import LSTMClassifier, TransformerClassifier, TorchClassifierWrapper
+from features.feature_extraction import TransformerExtractor, BagOfWordsExtractor, CombinedFeatureExtractor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -116,65 +117,129 @@ class EnsembleTrainer:
         self.preprocessor = TextPreprocessor()
         self.n_folds = n_folds
         
-        # Define model configurations with adjusted weights
+        # Load datasets once
+        logger.info("Loading datasets...")
+        self.train_df, self.test_df = load_datasets()
+        
+        # Updated model configurations using best performing features
         self.models = [
-            ('bow_lstm', 0.4),       # Increased weight for LSTM
-            ('bow_transformer', 0.4), # Increased weight for transformer
-            ('transformer_knn', 0.2)  # Reduced weight for KNN
+            ('finbert_cls', 0.3),     # FinBERT with CLS token
+            ('finbert_mean', 0.25),    # FinBERT with mean pooling
+            ('bow_tfidf_combined', 0.25),  # Combined BOW+TF-IDF features
+            ('transformer', 0.2),      # Original transformer for diversity
         ]
         
-        # Initialize class weights
-        train_df, _ = load_datasets()
-        class_weights = compute_class_weight(
-            class_weight='balanced',
-            classes=np.unique(train_df['label']),
-            y=train_df['label']
+        # Initialize feature extractors
+        self.feature_extractors = {
+            'finbert_cls': TransformerExtractor(
+                model_name='ProsusAI/finbert',
+                pooling_strategy='cls'
+            ),
+            'finbert_mean': TransformerExtractor(
+                model_name='ProsusAI/finbert',
+                pooling_strategy='mean'
+            ),
+            'bow_tfidf_combined': CombinedFeatureExtractor([
+                BagOfWordsExtractor(use_tfidf=True),
+                BagOfWordsExtractor(use_tfidf=False)
+            ]),
+            'transformer': TransformerExtractor()
+        }
+        
+        # Initialize class weights using loaded data
+        class_counts = self.train_df['label'].value_counts()
+        total_samples = len(self.train_df)
+        self.class_weights = {
+            label: (total_samples / (len(class_counts) * count)) * 1.2  # Additional 20% boost
+            if count < total_samples / len(class_counts)  # For minority classes
+            else total_samples / (len(class_counts) * count)
+            for label, count in class_counts.items()
+        }
+        
+        # Model hyperparameters with focus on handling imbalance
+        self.model_params = {
+            'lstm': {
+                'hidden_size': 256,
+                'num_layers': 2,
+                'dropout': 0.4,
+                'batch_size': 64,  # Increased for faster training
+                'num_epochs': 15,  # Reduced epochs
+                'learning_rate': 0.001,
+                'use_focal_loss': True,
+                'focal_gamma': 2.5
+            },
+            'transformer': {
+                'hidden_size': 256,  # Reduced size
+                'num_heads': 8,
+                'num_layers': 2,  # Reduced layers
+                'dropout': 0.3,
+                'batch_size': 32,
+                'num_epochs': 10,  # Reduced epochs
+                'learning_rate': 0.0001,
+                'use_focal_loss': True,
+                'focal_gamma': 2.5
+            }
+        }
+    
+    def train_model(self, model_type: str, features: np.ndarray, labels: np.ndarray) -> BaseEstimator:
+        """Train a single model with improved handling of class imbalance."""
+        logger.info(f"Training {model_type} model...")
+        params = self.model_params[model_type]
+        
+        if model_type == 'lstm':
+            model = LSTMClassifier(
+                input_size=features.shape[-1],
+                hidden_size=params['hidden_size'],
+                num_layers=params['num_layers'],
+                dropout=params['dropout']
+            )
+        else:  # transformer
+            model = TransformerClassifier(
+                input_size=features.shape[-1],
+                hidden_size=params['hidden_size'],
+                dropout=params['dropout']
+            )
+        
+        # Wrap model with improved training
+        wrapped_model = TorchClassifierWrapper(
+            model=model,
+            optimizer_kwargs={'lr': params['learning_rate']},
+            batch_size=params['batch_size'],
+            num_epochs=params['num_epochs'],
+            use_focal_loss=params['use_focal_loss'],
+            focal_gamma=params['focal_gamma']
         )
-        self.class_weights = torch.FloatTensor(class_weights)
-        self.base_trainer.class_weights = self.class_weights
+        
+        # Train model
+        logger.info("Starting model training...")
+        wrapped_model.fit(features, labels)
+        logger.info("Model training completed")
+        return wrapped_model
     
     def prepare_features(self) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray], np.ndarray]:
         """Prepare features for all models."""
-        # Load and preprocess data
-        train_df, test_df = load_datasets()
-        
-        # Process texts
-        train_texts = [self.preprocessor.preprocess(text) for text in train_df['text']]
-        test_texts = [self.preprocessor.preprocess(text) for text in test_df['text']]
+        # Process texts using already loaded data
+        train_texts = [self.preprocessor.preprocess(text) for text in self.train_df['text']]
+        test_texts = [self.preprocessor.preprocess(text) for text in self.test_df['text']]
         
         # Extract features for each model type
         train_features = {}
         test_features = {}
-        self.extractors = {}  # Store fitted extractors
         
-        # Align feature configs with ModelTrainer and TransformerExtractor
-        feature_configs = {
-            'bow': {
-                'max_features': 5000,
-                'ngram_range': (1, 2),
-                'min_df': 5,
-                'max_df': 0.9
-            },
-            'transformer': {
-                'model_name': 'ProsusAI/finbert',
-                'max_length': 128,
-                'pooling_strategy': 'mean_pooling'  # Changed from 'pooling' to 'pooling_strategy'
-            }
-        }
-        
-        for feat_type, config in feature_configs.items():
-            logger.info(f"Extracting {feat_type} features...")
-            extractor = create_feature_extractor(method=feat_type, **config)
+        # Use the already initialized feature extractors
+        for model_name, _ in self.models:
+            logger.info(f"Extracting {model_name} features...")
+            extractor = self.feature_extractors[model_name]
+            
             # Fit and transform on training data
-            train_features[feat_type] = extractor.fit_transform(train_texts)
+            train_features[model_name] = extractor.fit_transform(train_texts)
             # Transform test data using fitted extractor
-            test_features[feat_type] = extractor.transform(test_texts)
-            self.extractors[feat_type] = extractor
+            test_features[model_name] = extractor.transform(test_texts)
         
         return (
             train_features,
             test_features,
-            train_df['label'].values
+            self.train_df['label'].values
         )
     
     def create_confusion_matrix_plot(self, conf_matrix: np.ndarray, title: str) -> go.Figure:
@@ -353,7 +418,7 @@ class EnsembleTrainer:
             f.write(html_content)
     
     def train_and_evaluate(self) -> None:
-        """Train and evaluate the ensemble model using cross-validation."""
+        """Train and evaluate the ensemble model with improved class balance handling."""
         logger.info("Preparing features...")
         train_features, test_features, train_labels = self.prepare_features()
         
@@ -363,15 +428,18 @@ class EnsembleTrainer:
         
         # Perform cross-validation
         logger.info(f"\nPerforming {self.n_folds}-fold cross-validation...")
-        for fold, (train_idx, val_idx) in enumerate(skf.split(train_features['bow'], train_labels), 1):
+        
+        # Use finbert_cls features for splitting - any feature set would work since we maintain indices
+        for fold, (train_idx, val_idx) in enumerate(skf.split(train_features['finbert_cls'], train_labels), 1):
             logger.info(f"\nFold {fold}/{self.n_folds}")
             
             # Split features for each model
             fold_train_features = {}
             fold_val_features = {}
-            for feat_type in train_features:
-                fold_train_features[feat_type] = train_features[feat_type][train_idx]
-                fold_val_features[feat_type] = train_features[feat_type][val_idx]
+            for model_name, _ in self.models:
+                logger.info(f"Preparing features for {model_name}...")
+                fold_train_features[model_name] = train_features[model_name][train_idx]
+                fold_val_features[model_name] = train_features[model_name][val_idx]
             
             # Get labels
             fold_train_labels = train_labels[train_idx]
@@ -380,43 +448,23 @@ class EnsembleTrainer:
             # Train models for this fold
             models = []
             for model_name, weight in self.models:
-                feat_type = model_name.split('_')[0]
-                model_type = model_name.split('_')[1]
-                
-                if model_type == 'lstm':
-                    model = self.base_trainer.train_lstm(
-                        fold_train_features[feat_type],
-                        fold_train_labels
-                    )
-                elif model_type == 'transformer':
-                    model = self.base_trainer.train_transformer(
-                        fold_train_features[feat_type],
-                        fold_train_labels
-                    )
-                else:  # knn
-                    model = self.base_trainer.train_knn(
-                        fold_train_features[feat_type],
-                        fold_train_labels
-                    )
-                
+                logger.info(f"Training model {model_name} with weight {weight}...")
+                feat_type = model_name  # Use the full model name as the feature key
+                model = self.train_model(
+                    model_type='transformer',  # All our models are transformer-based now
+                    features=fold_train_features[feat_type],
+                    labels=fold_train_labels
+                )
                 models.append((model, weight))
+                logger.info(f"Completed training {model_name}")
             
             # Create and evaluate ensemble
+            logger.info("Creating ensemble model...")
             ensemble = EnsembleClassifier(models, voting='soft')
-            
-            # Prepare features dictionary for ensemble
-            ensemble_train_features = {
-                name: fold_train_features[name.split('_')[0]]
-                for name, _ in self.models
-            }
-            ensemble_val_features = {
-                name: fold_val_features[name.split('_')[0]]
-                for name, _ in self.models
-            }
-            
-            # Train and evaluate
-            ensemble.fit(ensemble_train_features, fold_train_labels)
-            val_predictions = ensemble.predict(ensemble_val_features)
+            logger.info("Fitting ensemble...")
+            ensemble.fit(fold_train_features, fold_train_labels)
+            logger.info("Making predictions...")
+            val_predictions = ensemble.predict(fold_val_features)
             
             # Store results
             fold_report = classification_report(fold_val_labels, val_predictions, output_dict=True)
@@ -424,48 +472,36 @@ class EnsembleTrainer:
             
             logger.info(f"Fold {fold} Results:")
             logger.info(classification_report(fold_val_labels, val_predictions))
+            
+            # Save intermediate results
+            intermediate_results = {
+                'fold': fold,
+                'cv_results': cv_results
+            }
+            with open(self.output_dir / f'intermediate_results_fold_{fold}.json', 'w') as f:
+                json.dump(intermediate_results, f, indent=2)
         
         # Train final model on all training data
         logger.info("\nTraining final model on all data...")
         final_models = []
         for model_name, weight in self.models:
-            feat_type = model_name.split('_')[0]
-            model_type = model_name.split('_')[1]
-            
-            if model_type == 'lstm':
-                model = self.base_trainer.train_lstm(
-                    train_features[feat_type],
-                    train_labels
-                )
-            elif model_type == 'transformer':
-                model = self.base_trainer.train_transformer(
-                    train_features[feat_type],
-                    train_labels
-                )
-            else:  # knn
-                model = self.base_trainer.train_knn(
-                    train_features[feat_type],
-                    train_labels
-                )
-            
+            logger.info(f"Training final {model_name} model...")
+            feat_type = model_name  # Use the full model name as the feature key
+            model = self.train_model(
+                model_type='transformer',  # All our models are transformer-based now
+                features=train_features[feat_type],
+                labels=train_labels
+            )
             final_models.append((model, weight))
+            logger.info(f"Completed training final {model_name} model")
         
+        logger.info("Creating final ensemble...")
         final_ensemble = EnsembleClassifier(final_models, voting='soft')
-        
-        # Prepare features dictionary for final ensemble
-        final_train_features = {
-            name: train_features[name.split('_')[0]]
-            for name, _ in self.models
-        }
-        final_test_features = {
-            name: test_features[name.split('_')[0]]
-            for name, _ in self.models
-        }
-        
-        # Train final ensemble and generate predictions
-        final_ensemble.fit(final_train_features, train_labels)
-        test_predictions = final_ensemble.predict(final_test_features)
-        train_predictions = final_ensemble.predict(final_train_features)
+        logger.info("Fitting final ensemble...")
+        final_ensemble.fit(train_features, train_labels)
+        logger.info("Making final predictions...")
+        test_predictions = final_ensemble.predict(test_features)
+        train_predictions = final_ensemble.predict(train_features)
         
         # Calculate final confusion matrix
         final_conf_matrix = confusion_matrix(train_labels, train_predictions)
@@ -494,6 +530,25 @@ class EnsembleTrainer:
         
         logger.info(f"\nResults saved to {self.output_dir}")
         logger.info("Generated HTML report with visualizations")
+
+    def train(self, texts: List[str], labels: List[int]) -> Dict:
+        """Train ensemble model with improved feature extractors"""
+        results = {}
+        for model_name, weight in self.models:
+            # Extract features using corresponding extractor
+            features = self.feature_extractors[model_name].fit_transform(texts)
+            
+            # Train model with class balancing
+            model_results = self.base_trainer.train_with_cv(
+                features,
+                labels,
+                n_splits=self.n_folds,
+                model_name=model_name,
+                class_weight='balanced'
+            )
+            results[model_name] = model_results
+        
+        return results
 
 if __name__ == "__main__":
     trainer = EnsembleTrainer()

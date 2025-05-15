@@ -38,7 +38,8 @@ if src_dir not in sys.path:
 from features.feature_extraction import (
     BagOfWordsExtractor,
     Word2VecExtractor,
-    TransformerExtractor
+    TransformerExtractor,
+    CombinedFeatureExtractor
 )
 
 logger = logging.getLogger(__name__)
@@ -444,7 +445,7 @@ def run_comparison(
     
     # Add improved BoW/TF-IDF extractors
     comparison.add_bow_extractor(
-        name='tfidf_improved',
+        name='tfidf',
         use_tfidf=True,
         max_features=10000,
         min_df=3,
@@ -455,7 +456,7 @@ def run_comparison(
         stop_words='english'
     )
     comparison.add_bow_extractor(
-        name='bow_improved',
+        name='bow',
         use_tfidf=False,
         max_features=10000,
         min_df=3,
@@ -467,21 +468,99 @@ def run_comparison(
     # Add improved Word2Vec variations
     comparison.add_word2vec_extractors(
         vector_size=300,
-        windows=[8, 10],
+        windows=[5, 10],
         min_counts=[2, 5],
-        architectures=[1],  # Skip-gram
+        architectures=[0, 1],  # Both CBOW and Skip-gram
         negative_samples=[10, 15],
         epochs=[20, 30],
         use_fasttext=True
     )
     
-    # Add FinBERT with different pooling strategies
-    comparison.add_transformer_extractor(
-        name='finbert',
+    # Add FinBERT with different configurations
+    finbert_configs = [
+        {
+            'name': 'finbert_mean',
+            'model_name': 'ProsusAI/finbert',
+            'max_length': 256,
+            'pooling_strategy': 'mean_pooling'
+        },
+        {
+            'name': 'finbert_cls',
+            'model_name': 'ProsusAI/finbert',
+            'max_length': 256,
+            'pooling_strategy': 'cls'
+        },
+        {
+            'name': 'finbert_max',
+            'model_name': 'ProsusAI/finbert',
+            'max_length': 256,
+            'pooling_strategy': 'max_pooling'
+        }
+    ]
+    
+    for config in finbert_configs:
+        comparison.feature_extractors[config['name']] = TransformerExtractor(
+            model_name=config['model_name'],
+            max_length=config['max_length'],
+            pooling_strategy=config['pooling_strategy']
+        )
+    
+    # Add combined feature extractors
+    bow_extractor = BagOfWordsExtractor(
+        use_tfidf=False,
+        max_features=10000,
+        min_df=3,
+        max_df=0.90,
+        ngram_range=(1, 3)
+    )
+    tfidf_extractor = BagOfWordsExtractor(
+        use_tfidf=True,
+        max_features=10000,
+        min_df=3,
+        max_df=0.90,
+        ngram_range=(1, 3),
+        sublinear_tf=True
+    )
+    finbert_mean_extractor = TransformerExtractor(
         model_name='ProsusAI/finbert',
         max_length=256,
-        pooling_strategies=['mean_pooling', 'cls', 'max_pooling']
+        pooling_strategy='mean_pooling'
     )
+    finbert_cls_extractor = TransformerExtractor(
+        model_name='ProsusAI/finbert',
+        max_length=256,
+        pooling_strategy='cls'
+    )
+    
+    # Add combined extractors with different weights
+    combined_extractors = {
+        'bow_tfidf_combined': {
+            'extractors': [bow_extractor, tfidf_extractor],
+            'weights': [0.5, 0.5]
+        },
+        'bow_finbert_combined': {
+            'extractors': [bow_extractor, finbert_mean_extractor],
+            'weights': [0.6, 0.4]  # More weight to BOW as it performs better
+        },
+        'tfidf_finbert_combined': {
+            'extractors': [tfidf_extractor, finbert_mean_extractor],
+            'weights': [0.6, 0.4]
+        },
+        'bow_tfidf_finbert_mean': {
+            'extractors': [bow_extractor, tfidf_extractor, finbert_mean_extractor],
+            'weights': [0.4, 0.4, 0.2]
+        },
+        'bow_tfidf_finbert_cls': {
+            'extractors': [bow_extractor, tfidf_extractor, finbert_cls_extractor],
+            'weights': [0.4, 0.4, 0.2]
+        }
+    }
+    
+    for name, config in combined_extractors.items():
+        comparison.feature_extractors[name] = CombinedFeatureExtractor(
+            extractors=config['extractors'],
+            weights=config['weights']
+        )
     
     # Extract features and evaluate
     comparison.extract_features(texts)

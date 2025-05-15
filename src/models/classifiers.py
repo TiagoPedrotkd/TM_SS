@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.base import BaseEstimator, ClassifierMixin
 from typing import Union, Tuple, Optional
@@ -68,6 +69,19 @@ class TransformerClassifier(nn.Module):
         x = self.fc3(x)
         return x
 
+class FocalLoss(nn.Module):
+    """Focal Loss for handling class imbalance."""
+    def __init__(self, alpha: torch.Tensor = None, gamma: float = 2.0):
+        super().__init__()
+        self.alpha = alpha  # Class weights
+        self.gamma = gamma  # Focusing parameter
+    
+    def forward(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        ce_loss = F.cross_entropy(inputs, targets, reduction='none', weight=self.alpha)
+        pt = torch.exp(-ce_loss)
+        focal_loss = ((1 - pt) ** self.gamma) * ce_loss
+        return focal_loss.mean()
+
 class TorchClassifierWrapper(BaseEstimator, ClassifierMixin):
     def __init__(
         self,
@@ -77,7 +91,9 @@ class TorchClassifierWrapper(BaseEstimator, ClassifierMixin):
         optimizer_kwargs: dict = None,
         batch_size: int = 32,
         num_epochs: int = 10,
-        device: str = "cuda" if torch.cuda.is_available() else "cpu"
+        device: str = "cuda" if torch.cuda.is_available() else "cpu",
+        use_focal_loss: bool = True,  # Added parameter
+        focal_gamma: float = 2.0      # Added parameter
     ):
         self.model = model
         self.optimizer_class = optimizer_class
@@ -85,6 +101,8 @@ class TorchClassifierWrapper(BaseEstimator, ClassifierMixin):
         self.batch_size = batch_size
         self.num_epochs = num_epochs
         self.device = device
+        self.use_focal_loss = use_focal_loss
+        self.focal_gamma = focal_gamma
         
         self.model.to(self.device)
         self.optimizer = self.optimizer_class(
@@ -93,15 +111,26 @@ class TorchClassifierWrapper(BaseEstimator, ClassifierMixin):
         )
     
     def compute_class_weights(self, y: np.ndarray) -> torch.Tensor:
-        """Compute class weights based on class frequencies."""
+        """Compute class weights based on class frequencies with additional scaling."""
         classes = np.unique(y)
         class_weights = []
         n_samples = len(y)
         
-        for c in classes:
-            class_weights.append(n_samples / (len(classes) * np.sum(y == c)))
+        # Count samples per class
+        class_counts = np.array([np.sum(y == c) for c in classes])
         
-        return torch.FloatTensor(class_weights).to(self.device)
+        # Compute weights with additional scaling for minority classes
+        weights = n_samples / (len(classes) * class_counts)
+        
+        # Apply additional scaling to minority classes
+        max_weight = np.max(weights)
+        scaled_weights = np.where(
+            weights > max_weight * 0.5,  # For minority classes
+            weights * 1.2,  # Increase weight by 20%
+            weights
+        )
+        
+        return torch.FloatTensor(scaled_weights).to(self.device)
     
     def fit(
         self,
@@ -121,11 +150,28 @@ class TorchClassifierWrapper(BaseEstimator, ClassifierMixin):
         
         # Compute class weights
         class_weights = self.compute_class_weights(y.cpu().numpy())
-        self.criterion = nn.CrossEntropyLoss(weight=class_weights)
         
-        # Training loop
+        # Use Focal Loss or weighted CrossEntropyLoss
+        if self.use_focal_loss:
+            self.criterion = FocalLoss(alpha=class_weights, gamma=self.focal_gamma)
+        else:
+            self.criterion = nn.CrossEntropyLoss(weight=class_weights)
+        
+        # Training loop with early stopping
+        best_loss = float('inf')
+        patience = 5
+        patience_counter = 0
+        
         self.model.train()
         for epoch in range(self.num_epochs):
+            epoch_loss = 0.0
+            num_batches = 0
+            
+            # Shuffle data
+            perm = torch.randperm(len(X))
+            X = X[perm]
+            y = y[perm]
+            
             for i in range(0, len(X), self.batch_size):
                 batch_X = X[i:i + self.batch_size]
                 batch_y = y[i:i + self.batch_size]
@@ -135,6 +181,20 @@ class TorchClassifierWrapper(BaseEstimator, ClassifierMixin):
                 loss = self.criterion(outputs, batch_y)
                 loss.backward()
                 self.optimizer.step()
+                
+                epoch_loss += loss.item()
+                num_batches += 1
+            
+            avg_epoch_loss = epoch_loss / num_batches
+            
+            # Early stopping check
+            if avg_epoch_loss < best_loss:
+                best_loss = avg_epoch_loss
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                if patience_counter >= patience:
+                    break
         
         return self
     
