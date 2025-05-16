@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix, matthews_corrcoef
 from sklearn.utils.class_weight import compute_class_weight
 import torch
 import torch.nn as nn
@@ -162,13 +162,18 @@ class ModelTrainer:
         report = classification_report(y, y_pred, output_dict=True, zero_division=0)
         conf_matrix = confusion_matrix(y, y_pred)
         
+        # Add MCC score
+        mcc_score = matthews_corrcoef(y, y_pred)
+        report['matthews_corrcoef'] = mcc_score
+        
         # Add feature type and model name to report
         report['feature_type'] = feature_type
         report['model_name'] = model_name
         
         return {
             'report': report,
-            'confusion_matrix': conf_matrix
+            'confusion_matrix': conf_matrix,
+            'mcc_score': mcc_score
         }
     
     def plot_results(self, results: Dict[str, Dict[str, Any]], fold_metrics: Dict[str, Dict[str, float]]) -> None:
@@ -177,13 +182,13 @@ class ModelTrainer:
         metrics = ['precision', 'recall', 'f1-score']
         classes = ['Bearish', 'Bullish', 'Neutral']
         
-        # Calculate number of rows needed
-        n_rows = len(metrics) + 1  # +1 for CV metrics
+        # Calculate number of rows needed (add one for MCC)
+        n_rows = len(metrics) + 1  # +1 for MCC
         
         fig = make_subplots(
             rows=n_rows,
             cols=1,
-            subplot_titles=[metric.capitalize() for metric in metrics] + ['Cross-Validation Metrics'],
+            subplot_titles=[metric.capitalize() for metric in metrics] + ['Matthews Correlation Coefficient'],
             vertical_spacing=0.1
         )
         
@@ -208,38 +213,33 @@ class ModelTrainer:
                             col=1
                         )
         
-        # Plot cross-validation metrics
-        cv_metrics = ['accuracy', 'f1-score']
-        for i, metric in enumerate(cv_metrics):
-            values = []
-            labels = []
-            for model_key, metrics in fold_metrics.items():
-                if metric in metrics:
-                    values.append(metrics[metric]['mean'])
-                    labels.append(model_key)
-            
-            if values:  # Only add trace if we have values
-                fig.add_trace(
-                    go.Bar(
-                        name=metric,
-                        x=labels,
-                        y=values,
-                        error_y=dict(
-                            type='data',
-                            array=[fold_metrics[label][metric]['std'] for label in labels],
-                            visible=True
-                        ),
-                        showlegend=(i == 0)
-                    ),
-                    row=n_rows,
-                    col=1
-                )
+        # Plot MCC scores
+        mcc_values = []
+        mcc_labels = []
+        for feature_type in self.feature_extractors.keys():
+            for model_name in ['knn', 'lstm', 'transformer']:
+                key = f"{feature_type}_{model_name}"
+                if key in results and 'mcc_score' in results[key]:
+                    mcc_values.append(results[key]['mcc_score'])
+                    mcc_labels.append(f"{feature_type} - {model_name}")
+        
+        if mcc_values:
+            fig.add_trace(
+                go.Bar(
+                    name='MCC Score',
+                    x=mcc_labels,
+                    y=mcc_values,
+                    showlegend=True
+                ),
+                row=n_rows,
+                col=1
+            )
         
         # Update layout
         fig.update_layout(
-            title='Model Comparison by Feature Type and Cross-Validation Results',
+            height=300 * n_rows,
+            title_text="Model Performance Metrics Including MCC",
             template='plotly_white',
-            height=300 * n_rows,  # Adjust height based on number of rows
             showlegend=True,
             legend=dict(
                 orientation="h",

@@ -7,7 +7,7 @@ from typing import Dict, List, Any, Tuple
 import torch
 from pathlib import Path
 import logging
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix, matthews_corrcoef
 import json
 import pandas as pd
 import plotly.graph_objects as go
@@ -275,18 +275,20 @@ class EnsembleTrainer:
         
         return fig
     
-    def create_performance_plot(self, cv_results: List[Dict]) -> go.Figure:
-        """Create performance comparison plot."""
+    def create_performance_plot(self, cv_results: List[Dict], mcc_scores: List[float]) -> go.Figure:
+        """Create performance comparison plot with MCC."""
         metrics = ['precision', 'recall', 'f1-score']
         classes = ['Bearish', 'Bullish', 'Neutral']
         
+        # Add one more row for MCC
         fig = make_subplots(
-            rows=len(metrics),
+            rows=len(metrics) + 1,
             cols=1,
-            subplot_titles=[m.capitalize() for m in metrics],
+            subplot_titles=[m.capitalize() for m in metrics] + ['Matthews Correlation Coefficient'],
             vertical_spacing=0.1
         )
         
+        # Plot per-class metrics
         for i, metric in enumerate(metrics, 1):
             means = []
             stds = []
@@ -311,9 +313,26 @@ class EnsembleTrainer:
                 col=1
             )
         
+        # Plot MCC scores
+        fig.add_trace(
+            go.Bar(
+                name='MCC',
+                x=['Cross-validation'],
+                y=[np.mean(mcc_scores)],
+                error_y=dict(
+                    type='data',
+                    array=[np.std(mcc_scores)],
+                    visible=True
+                ),
+                showlegend=True
+            ),
+            row=len(metrics) + 1,
+            col=1
+        )
+        
         fig.update_layout(
-            height=800,
-            title_text="Cross-Validation Performance by Class",
+            height=1000,  # Increased height to accommodate MCC plot
+            title_text="Cross-Validation Performance by Class and MCC",
             showlegend=True
         )
         
@@ -323,21 +342,23 @@ class EnsembleTrainer:
         self,
         cv_results: List[Dict],
         final_conf_matrix: np.ndarray,
-        test_predictions: np.ndarray
+        test_predictions: np.ndarray,
+        mcc_scores: List[float],
+        final_mcc: float
     ) -> None:
         """Generate HTML report with visualizations."""
         # Create visualizations
-        conf_matrix_fig = self.create_confusion_matrix_plot(
-            final_conf_matrix,
-            "Confusion Matrix (Final Model)"
-        )
+        performance_fig = self.create_performance_plot(cv_results, mcc_scores)
         
-        performance_fig = self.create_performance_plot(cv_results)
+        # For test data predictions, we'll just show the distribution
+        test_pred_dist = pd.Series(test_predictions).value_counts()
         
         # Calculate overall metrics
         overall_metrics = {
             'accuracy': np.mean([fold['accuracy'] for fold in cv_results]),
-            'macro_f1': np.mean([fold['macro avg']['f1-score'] for fold in cv_results])
+            'macro_f1': np.mean([fold['macro avg']['f1-score'] for fold in cv_results]),
+            'mcc_cv_mean': np.mean(mcc_scores),
+            'mcc_cv_std': np.std(mcc_scores)
         }
         
         # Generate HTML
@@ -354,18 +375,16 @@ class EnsembleTrainer:
                 .section {{
                     margin-bottom: 40px;
                 }}
-                table {{
-                    border-collapse: collapse;
-                    width: 100%;
-                    margin: 20px 0;
+                .metric-box {{
+                    background-color: #f8f9fa;
+                    border: 1px solid #dee2e6;
+                    border-radius: 4px;
+                    padding: 15px;
+                    margin: 10px 0;
                 }}
-                th, td {{
-                    border: 1px solid #ddd;
-                    padding: 8px;
-                    text-align: left;
-                }}
-                th {{
-                    background-color: #f5f5f5;
+                .metric-title {{
+                    font-weight: bold;
+                    color: #495057;
                 }}
             </style>
         </head>
@@ -384,10 +403,19 @@ class EnsembleTrainer:
             </div>
             
             <div class="section">
-                <h2>Cross-Validation Results</h2>
-                <p>Number of folds: {self.n_folds}</p>
-                <p>Overall Accuracy: {overall_metrics['accuracy']:.3f}</p>
-                <p>Macro F1-Score: {overall_metrics['macro_f1']:.3f}</p>
+                <h2>Overall Performance Metrics</h2>
+                <div class="metric-box">
+                    <div class="metric-title">Cross-Validation Accuracy</div>
+                    <div>{overall_metrics['accuracy']:.3f}</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-title">Cross-Validation Macro F1-Score</div>
+                    <div>{overall_metrics['macro_f1']:.3f}</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-title">Cross-Validation MCC</div>
+                    <div>{overall_metrics['mcc_cv_mean']:.3f} ± {overall_metrics['mcc_cv_std']:.3f}</div>
+                </div>
             </div>
             
             <div class="section">
@@ -396,19 +424,19 @@ class EnsembleTrainer:
             </div>
             
             <div class="section">
-                <h2>Confusion Matrix</h2>
-                {conf_matrix_fig.to_html(full_html=False, include_plotlyjs='cdn')}
-            </div>
-            
-            <div class="section">
                 <h2>Test Set Predictions</h2>
-                <p>Number of test samples: {len(test_predictions)}</p>
-                <p>Prediction distribution:</p>
-                <ul>
-                    <li>Bearish: {sum(test_predictions == 0)} ({sum(test_predictions == 0)/len(test_predictions)*100:.1f}%)</li>
-                    <li>Bullish: {sum(test_predictions == 1)} ({sum(test_predictions == 1)/len(test_predictions)*100:.1f}%)</li>
-                    <li>Neutral: {sum(test_predictions == 2)} ({sum(test_predictions == 2)/len(test_predictions)*100:.1f}%)</li>
-                </ul>
+                <div class="metric-box">
+                    <div class="metric-title">Number of test samples</div>
+                    <div>{len(test_predictions)}</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-title">Prediction distribution</div>
+                    <ul>
+                        <li>Bearish: {test_pred_dist.get(0, 0)} ({test_pred_dist.get(0, 0)/len(test_predictions)*100:.1f}%)</li>
+                        <li>Bullish: {test_pred_dist.get(1, 0)} ({test_pred_dist.get(1, 0)/len(test_predictions)*100:.1f}%)</li>
+                        <li>Neutral: {test_pred_dist.get(2, 0)} ({test_pred_dist.get(2, 0)/len(test_predictions)*100:.1f}%)</li>
+                    </ul>
+                </div>
             </div>
         </body>
         </html>
@@ -418,13 +446,14 @@ class EnsembleTrainer:
             f.write(html_content)
     
     def train_and_evaluate(self) -> None:
-        """Train and evaluate the ensemble model with improved class balance handling."""
+        """Train and evaluate the ensemble model."""
         logger.info("Preparing features...")
         train_features, test_features, train_labels = self.prepare_features()
         
         # Initialize cross-validation
         cv_results = []
         skf = StratifiedKFold(n_splits=self.n_folds, shuffle=True, random_state=42)
+        mcc_scores = []  # Track MCC scores
         
         # Perform cross-validation
         logger.info(f"\nPerforming {self.n_folds}-fold cross-validation...")
@@ -466,17 +495,22 @@ class EnsembleTrainer:
             logger.info("Making predictions...")
             val_predictions = ensemble.predict(fold_val_features)
             
-            # Store results
+            # Calculate metrics including MCC
             fold_report = classification_report(fold_val_labels, val_predictions, output_dict=True)
+            mcc_score = matthews_corrcoef(fold_val_labels, val_predictions)
+            fold_report['matthews_corrcoef'] = mcc_score
+            mcc_scores.append(mcc_score)
             cv_results.append(fold_report)
             
             logger.info(f"Fold {fold} Results:")
             logger.info(classification_report(fold_val_labels, val_predictions))
+            logger.info(f"Matthews Correlation Coefficient: {mcc_score:.4f}")
             
             # Save intermediate results
             intermediate_results = {
                 'fold': fold,
-                'cv_results': cv_results
+                'cv_results': cv_results,
+                'mcc_scores': mcc_scores
             }
             with open(self.output_dir / f'intermediate_results_fold_{fold}.json', 'w') as f:
                 json.dump(intermediate_results, f, indent=2)
@@ -501,28 +535,25 @@ class EnsembleTrainer:
         final_ensemble.fit(train_features, train_labels)
         logger.info("Making final predictions...")
         test_predictions = final_ensemble.predict(test_features)
-        train_predictions = final_ensemble.predict(train_features)
         
-        # Calculate final confusion matrix
-        final_conf_matrix = confusion_matrix(train_labels, train_predictions)
-        
-        # Save test predictions
-        test_df = pd.read_csv(Path('data/test.csv'))
-        predictions_df = pd.DataFrame({
-            'id': test_df['id'],
-            'text': test_df['text'],
-            'predicted_label': test_predictions
-        })
-        predictions_df.to_csv(self.output_dir / 'test_predictions.csv', index=False)
-        
-        # Generate and save report
-        self.generate_html_report(cv_results, final_conf_matrix, test_predictions)
+        # Generate and save report - removed unused confusion matrix calculation
+        self.generate_html_report(
+            cv_results=cv_results,
+            final_conf_matrix=None,  # Not used anymore
+            test_predictions=test_predictions,
+            mcc_scores=mcc_scores,
+            final_mcc=None  # Not used anymore
+        )
         
         # Save detailed results
         results = {
             'cross_validation_results': cv_results,
-            'final_confusion_matrix': final_conf_matrix.tolist(),
-            'model_weights': {name: weight for name, weight in self.models}
+            'test_predictions': test_predictions.tolist(),
+            'model_weights': {name: weight for name, weight in self.models},
+            'mcc_scores': {
+                'cv_mean': np.mean(mcc_scores),
+                'cv_std': np.std(mcc_scores)
+            }
         }
         
         with open(self.output_dir / 'detailed_results.json', 'w') as f:

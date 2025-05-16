@@ -34,6 +34,7 @@
         "f1-score": 0.7432551238322883,
         "support": 1909
       },
+      "matthews_corrcoef": 0.4974523441864227,
       "feature_type": "bow",
       "model_name": "knn"
     }
@@ -73,6 +74,7 @@
         "f1-score": 0.737550383031325,
         "support": 1909
       },
+      "matthews_corrcoef": 0.4895367298993818,
       "feature_type": "bow",
       "model_name": "knn"
     }
@@ -112,6 +114,7 @@
         "f1-score": 0.7457428042203079,
         "support": 1909
       },
+      "matthews_corrcoef": 0.5044829597059128,
       "feature_type": "bow",
       "model_name": "knn"
     }
@@ -151,6 +154,7 @@
         "f1-score": 0.7278016918045427,
         "support": 1908
       },
+      "matthews_corrcoef": 0.46763942247172324,
       "feature_type": "bow",
       "model_name": "knn"
     }
@@ -190,6 +194,7 @@
         "f1-score": 0.7415247358521424,
         "support": 1908
       },
+      "matthews_corrcoef": 0.49534656206244265,
       "feature_type": "bow",
       "model_name": "knn"
     }
