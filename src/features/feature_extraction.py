@@ -177,6 +177,16 @@ class Word2VecExtractor:
         
         return self._get_doc_vectors(tokenized_texts)
     
+    def transform(self, texts: List[str]) -> np.ndarray:
+        """Transform texts using the trained Word2Vec model."""
+        if self.model is None:
+            raise ValueError("Model not trained. Call fit_transform first.")
+        
+        # Tokenize texts
+        tokenized_texts = [word_tokenize(text.lower()) for text in texts]
+        
+        return self._get_doc_vectors(tokenized_texts)
+    
     def _get_doc_vectors(self, tokenized_texts: List[List[str]]) -> np.ndarray:
         """Get document vectors with improved aggregation."""
         doc_vectors = []

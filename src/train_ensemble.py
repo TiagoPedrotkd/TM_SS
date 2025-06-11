@@ -14,13 +14,14 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from sklearn.model_selection import StratifiedKFold
 from sklearn.utils.class_weight import compute_class_weight
+from sklearn.neighbors import KNeighborsClassifier
 
 from train_models import ModelTrainer
 from utils.data_loader import load_datasets
 from preprocessing.text_processor import TextPreprocessor
 from features.feature_extraction import create_feature_extractor
 from models.classifiers import LSTMClassifier, TransformerClassifier, TorchClassifierWrapper
-from features.feature_extraction import TransformerExtractor, BagOfWordsExtractor, CombinedFeatureExtractor
+from features.feature_extraction import TransformerExtractor, BagOfWordsExtractor, CombinedFeatureExtractor, Word2VecExtractor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -121,100 +122,119 @@ class EnsembleTrainer:
         logger.info("Loading datasets...")
         self.train_df, self.test_df = load_datasets()
         
-        # Updated model configurations using best performing features
+        # Updated model configurations with diverse architectures
         self.models = [
-            ('finbert_cls', 0.3),     # FinBERT with CLS token
-            ('finbert_mean', 0.25),    # FinBERT with mean pooling
-            ('bow_tfidf_combined', 0.25),  # Combined BOW+TF-IDF features
-            ('transformer', 0.2),      # Original transformer for diversity
+            ('bow_tfidf_finbert-lstm', 0.30),    # Combined features with LSTM
+            ('bow-knn', 0.20),                    # Simple BOW with KNN
+            ('word2vec-lstm', 0.25),              # Word2Vec with LSTM
+            ('finbert-transformer', 0.25),        # FinBERT with Transformer
         ]
         
         # Initialize feature extractors
         self.feature_extractors = {
-            'finbert_cls': TransformerExtractor(
+            'bow_tfidf_finbert-lstm': CombinedFeatureExtractor([
+                BagOfWordsExtractor(use_tfidf=True),
+                BagOfWordsExtractor(use_tfidf=False),
+                TransformerExtractor(model_name='ProsusAI/finbert', pooling_strategy='mean')
+            ]),
+            'bow-knn': BagOfWordsExtractor(use_tfidf=False),
+            'word2vec-lstm': Word2VecExtractor(),
+            'finbert-transformer': TransformerExtractor(
                 model_name='ProsusAI/finbert',
                 pooling_strategy='cls'
-            ),
-            'finbert_mean': TransformerExtractor(
-                model_name='ProsusAI/finbert',
-                pooling_strategy='mean'
-            ),
-            'bow_tfidf_combined': CombinedFeatureExtractor([
-                BagOfWordsExtractor(use_tfidf=True),
-                BagOfWordsExtractor(use_tfidf=False)
-            ]),
-            'transformer': TransformerExtractor()
+            )
         }
         
-        # Initialize class weights using loaded data
-        class_counts = self.train_df['label'].value_counts()
-        total_samples = len(self.train_df)
-        self.class_weights = {
-            label: (total_samples / (len(class_counts) * count)) * 1.2  # Additional 20% boost
-            if count < total_samples / len(class_counts)  # For minority classes
-            else total_samples / (len(class_counts) * count)
-            for label, count in class_counts.items()
-        }
-        
-        # Model hyperparameters with focus on handling imbalance
-        self.model_params = {
+        # Model-specific configurations
+        self.model_configs = {
             'lstm': {
                 'hidden_size': 256,
                 'num_layers': 2,
                 'dropout': 0.4,
-                'batch_size': 64,  # Increased for faster training
-                'num_epochs': 15,  # Reduced epochs
+                'batch_size': 64,
+                'num_epochs': 15,
                 'learning_rate': 0.001,
                 'use_focal_loss': True,
                 'focal_gamma': 2.5
             },
             'transformer': {
-                'hidden_size': 256,  # Reduced size
+                'hidden_size': 256,
                 'num_heads': 8,
-                'num_layers': 2,  # Reduced layers
+                'num_layers': 2,
                 'dropout': 0.3,
                 'batch_size': 32,
-                'num_epochs': 10,  # Reduced epochs
+                'num_epochs': 10,
                 'learning_rate': 0.0001,
                 'use_focal_loss': True,
                 'focal_gamma': 2.5
+            },
+            'knn': {
+                'n_neighbors': 5,
+                'weights': 'distance',
+                'metric': 'cosine'
             }
         }
-    
-    def train_model(self, model_type: str, features: np.ndarray, labels: np.ndarray) -> BaseEstimator:
-        """Train a single model with improved handling of class imbalance."""
-        logger.info(f"Training {model_type} model...")
-        params = self.model_params[model_type]
         
-        if model_type == 'lstm':
+        # Initialize class weights
+        class_counts = self.train_df['label'].value_counts()
+        total_samples = len(self.train_df)
+        self.class_weights = {
+            label: (total_samples / (len(class_counts) * count)) * 1.2
+            if count < total_samples / len(class_counts)
+            else total_samples / (len(class_counts) * count)
+            for label, count in class_counts.items()
+        }
+    
+    def train_model(self, model_name: str, features: np.ndarray, labels: np.ndarray) -> BaseEstimator:
+        """Train a single model with improved logging."""
+        logger.info(f"Training {model_name} model...")
+        
+        # Determine model type from name
+        if 'knn' in model_name:
+            model = KNeighborsClassifier(**self.model_configs['knn'])
+            model.fit(features, labels)
+            
+        elif 'lstm' in model_name:
+            params = self.model_configs['lstm']
             model = LSTMClassifier(
                 input_size=features.shape[-1],
                 hidden_size=params['hidden_size'],
                 num_layers=params['num_layers'],
                 dropout=params['dropout']
             )
+            model = TorchClassifierWrapper(
+                model=model,
+                optimizer_kwargs={'lr': params['learning_rate']},
+                batch_size=params['batch_size'],
+                num_epochs=params['num_epochs'],
+                use_focal_loss=params['use_focal_loss'],
+                focal_gamma=params['focal_gamma']
+            )
+            model.fit(features, labels)
+            
         else:  # transformer
+            params = self.model_configs['transformer']
             model = TransformerClassifier(
                 input_size=features.shape[-1],
                 hidden_size=params['hidden_size'],
                 dropout=params['dropout']
             )
+            model = TorchClassifierWrapper(
+                model=model,
+                optimizer_kwargs={'lr': params['learning_rate']},
+                batch_size=params['batch_size'],
+                num_epochs=params['num_epochs'],
+                use_focal_loss=params['use_focal_loss'],
+                focal_gamma=params['focal_gamma']
+            )
+            model.fit(features, labels)
         
-        # Wrap model with improved training
-        wrapped_model = TorchClassifierWrapper(
-            model=model,
-            optimizer_kwargs={'lr': params['learning_rate']},
-            batch_size=params['batch_size'],
-            num_epochs=params['num_epochs'],
-            use_focal_loss=params['use_focal_loss'],
-            focal_gamma=params['focal_gamma']
-        )
+        # Calculate and log MCC score
+        predictions = model.predict(features)
+        mcc_score = matthews_corrcoef(labels, predictions)
+        logger.info(f"{model_name} Training MCC: {mcc_score:.4f}")
         
-        # Train model
-        logger.info("Starting model training...")
-        wrapped_model.fit(features, labels)
-        logger.info("Model training completed")
-        return wrapped_model
+        return model
     
     def prepare_features(self) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray], np.ndarray]:
         """Prepare features for all models."""
@@ -280,11 +300,12 @@ class EnsembleTrainer:
         metrics = ['precision', 'recall', 'f1-score']
         classes = ['Bearish', 'Bullish', 'Neutral']
         
-        # Add one more row for MCC
+        # Create subplots with an additional row for individual model MCCs
         fig = make_subplots(
-            rows=len(metrics) + 1,
+            rows=len(metrics) + 2,  # Added one more row for individual MCCs
             cols=1,
-            subplot_titles=[m.capitalize() for m in metrics] + ['Matthews Correlation Coefficient'],
+            subplot_titles=[m.capitalize() for m in metrics] + 
+                         ['Individual Model MCC Scores', 'Ensemble MCC'],
             vertical_spacing=0.1
         )
         
@@ -313,10 +334,45 @@ class EnsembleTrainer:
                 col=1
             )
         
-        # Plot MCC scores
+        # Plot individual model MCC scores
+        model_mccs = {}
+        for result in cv_results:
+            model_name = result.get('model_name', 'Unknown')
+            if 'matthews_corrcoef' in result:
+                if model_name not in model_mccs:
+                    model_mccs[model_name] = []
+                model_mccs[model_name].append(result['matthews_corrcoef'])
+        
+        # Calculate mean and std for each model's MCC
+        model_names = []
+        mcc_means = []
+        mcc_stds = []
+        for model_name, scores in model_mccs.items():
+            model_names.append(model_name)
+            mcc_means.append(np.mean(scores))
+            mcc_stds.append(np.std(scores))
+        
+        # Add individual model MCC bars
         fig.add_trace(
             go.Bar(
-                name='MCC',
+                name='Individual MCCs',
+                x=model_names,
+                y=mcc_means,
+                error_y=dict(
+                    type='data',
+                    array=mcc_stds,
+                    visible=True
+                ),
+                showlegend=True
+            ),
+            row=len(metrics) + 1,
+            col=1
+        )
+        
+        # Plot ensemble MCC score
+        fig.add_trace(
+            go.Bar(
+                name='Ensemble MCC',
                 x=['Cross-validation'],
                 y=[np.mean(mcc_scores)],
                 error_y=dict(
@@ -326,13 +382,13 @@ class EnsembleTrainer:
                 ),
                 showlegend=True
             ),
-            row=len(metrics) + 1,
+            row=len(metrics) + 2,
             col=1
         )
         
         fig.update_layout(
-            height=1000,  # Increased height to accommodate MCC plot
-            title_text="Cross-Validation Performance by Class and MCC",
+            height=1200,  # Increased height to accommodate new plot
+            title_text="Model Performance Metrics Including Individual and Ensemble MCC",
             showlegend=True
         )
         
@@ -459,7 +515,7 @@ class EnsembleTrainer:
         logger.info(f"\nPerforming {self.n_folds}-fold cross-validation...")
         
         # Use finbert_cls features for splitting - any feature set would work since we maintain indices
-        for fold, (train_idx, val_idx) in enumerate(skf.split(train_features['finbert_cls'], train_labels), 1):
+        for fold, (train_idx, val_idx) in enumerate(skf.split(train_features['finbert-transformer'], train_labels), 1):
             logger.info(f"\nFold {fold}/{self.n_folds}")
             
             # Split features for each model
@@ -480,7 +536,7 @@ class EnsembleTrainer:
                 logger.info(f"Training model {model_name} with weight {weight}...")
                 feat_type = model_name  # Use the full model name as the feature key
                 model = self.train_model(
-                    model_type='transformer',  # All our models are transformer-based now
+                    model_name=feat_type,
                     features=fold_train_features[feat_type],
                     labels=fold_train_labels
                 )
@@ -522,7 +578,7 @@ class EnsembleTrainer:
             logger.info(f"Training final {model_name} model...")
             feat_type = model_name  # Use the full model name as the feature key
             model = self.train_model(
-                model_type='transformer',  # All our models are transformer-based now
+                model_name=feat_type,
                 features=train_features[feat_type],
                 labels=train_labels
             )
