@@ -3,6 +3,136 @@
 ## Overview
 This project focuses on financial sentiment analysis using an ensemble of different machine learning and deep learning models. Our goal is to classify financial texts into three sentiment categories: Bearish, Bullish, and Neutral, using a variety of text representation techniques and classification algorithms.
 
+## Project Structure
+```
+.
+├── data/               # Dataset storage
+├── results/           # Model outputs and visualizations
+├── src/               # Source code
+│   ├── analysis/      # Analysis scripts
+│   ├── features/      # Feature extraction modules
+│   ├── models/        # Model implementations
+│   ├── preprocessing/ # Text preprocessing
+│   ├── scripts/       # Utility scripts
+│   ├── utils/         # Helper functions
+│   └── visualization/ # Plotting and visualization
+├── requirements.txt   # Project dependencies
+└── README.md         # Project documentation
+```
+
+## Python Files and Their Functionality
+
+### Main Training Scripts
+- `src/train_models.py`: Main script for training individual models
+  - Handles model training pipeline
+  - Implements cross-validation
+  - Saves model checkpoints
+  - Generates performance metrics
+
+- `src/train_ensemble.py`: Script for training and evaluating the ensemble model
+  - Combines multiple models
+  - Optimizes ensemble weights
+  - Performs final evaluation
+  - Generates ensemble predictions
+
+### Preprocessing
+- `src/preprocessing/text_processor.py`: Text preprocessing pipeline
+  - Implements TextPreprocessor class
+  - Handles text cleaning, tokenization
+  - Manages financial-specific preprocessing
+  - Supports batch processing
+
+### Feature Extraction
+- `src/features/feature_extraction.py`: Feature extraction implementations
+  - BOW/TF-IDF vectorization
+  - Word2Vec embeddings
+  - FinBERT transformer features
+  - Feature combination utilities
+
+- `src/features/feature_comparison.py`: Feature analysis and comparison
+  - Feature importance analysis
+  - Feature correlation studies
+  - Dimensionality reduction
+  - Feature visualization
+
+### Analysis Scripts
+- `src/analysis/data_exploration.py`: Initial data analysis
+  - Dataset statistics and distribution
+  - Text length analysis
+  - Class balance visualization
+  - Basic text statistics
+
+- `src/analysis/preprocessing_analysis.py`: Preprocessing impact analysis
+  - Preprocessing step evaluation
+  - Text transformation effects
+  - Vocabulary analysis
+  - Preprocessing pipeline optimization
+
+- `src/analysis/feature_analysis.py`: Feature engineering analysis
+  - Feature importance ranking
+  - Feature correlation analysis
+  - Feature selection metrics
+  - Dimensionality analysis
+
+- `src/analysis/corpus_splitting.py`: Dataset splitting utilities
+  - Train/test splitting
+  - Cross-validation setup
+  - Stratified sampling
+  - Data balancing
+
+### Visualization Scripts
+- `src/visualization/feature_comparison_viz.py`: Feature visualization
+  - Feature space visualization
+  - Dimensionality reduction plots
+  - Feature importance plots
+  - Correlation heatmaps
+
+- `src/visualization/plot_confusion_matrix.py`: Model evaluation visualization
+  - Confusion matrix plotting
+  - Performance metric visualization
+  - Error analysis plots
+  - Model comparison charts
+
+### Utility Scripts
+- `src/scripts/compare_features.py`: Feature comparison utilities
+  - Feature set comparison
+  - Performance benchmarking
+  - Feature combination testing
+  - Results aggregation
+
+- `src/scripts/visualize_comparison.py`: Comparison visualization
+  - Model comparison plots
+  - Feature set comparison charts
+  - Performance metric visualization
+  - Results dashboard generation
+
+### How to Run the Project
+
+1. **Setup Environment**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Data Preparation**:
+   - Place your dataset in the `data/` directory
+   - Ensure data is in CSV format with text and label columns
+
+3. **Training Individual Models**:
+   ```bash
+   python src/train_models.py
+   ```
+
+4. **Training Ensemble Model**:
+   ```bash
+   python src/train_ensemble.py
+   ```
+
+5. **View Results**:
+   - Check `results/` directory for:
+     - Model performance metrics
+     - Visualizations
+     - Saved model checkpoints
+
 ## Data Exploration
 - **Dataset**: Financial news articles and social media content with sentiment labels
 - **Classes**: 3 sentiment classes (Bearish (0), Bullish (1), Neutral (2))
@@ -156,3 +286,32 @@ Our `EnsembleTrainer` implements a sophisticated model combination approach:
 - External financial knowledge integration
 - Real-time sentiment analysis capabilities
 - Integration with trading signals and market indicators
+
+### How to Run Analysis and Visualization
+
+1. **Data Exploration**:
+   ```bash
+   python src/analysis/data_exploration.py
+   ```
+
+2. **Preprocessing Analysis**:
+   ```bash
+   python src/analysis/preprocessing_analysis.py
+   ```
+
+3. **Feature Analysis**:
+   ```bash
+   python src/analysis/feature_analysis.py
+   ```
+
+4. **Generate Visualizations**:
+   ```bash
+   python src/visualization/feature_comparison_viz.py
+   python src/visualization/plot_confusion_matrix.py
+   ```
+
+5. **Run Comparisons**:
+   ```bash
+   python src/scripts/compare_features.py
+   python src/scripts/visualize_comparison.py
+   ```
