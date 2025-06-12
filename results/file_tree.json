@@ -1,0 +1,82 @@
+{
+  "class_distribution.html": "class_distribution.html",
+  "corpus_splitting": {
+    "corpus_splitting_report.html": "corpus_splitting/corpus_splitting_report.html",
+    "kfold_split.html": "corpus_splitting/kfold_split.html",
+    "random_split.html": "corpus_splitting/random_split.html",
+    "stratified_split.html": "corpus_splitting/stratified_split.html"
+  },
+  "cross_validation": {
+    "bow_knn_results.json": "cross_validation/bow_knn_results.json",
+    "bow_lstm_results.json": "cross_validation/bow_lstm_results.json",
+    "bow_transformer_results.json": "cross_validation/bow_transformer_results.json",
+    "transformer_knn_results.json": "cross_validation/transformer_knn_results.json",
+    "transformer_lstm_results.json": "cross_validation/transformer_lstm_results.json",
+    "transformer_transformer_results.json": "cross_validation/transformer_transformer_results.json",
+    "word2vec_knn_results.json": "cross_validation/word2vec_knn_results.json",
+    "word2vec_lstm_results.json": "cross_validation/word2vec_lstm_results.json",
+    "word2vec_transformer_results.json": "cross_validation/word2vec_transformer_results.json"
+  },
+  "data_exploration": {
+    "data_exploration_report.html": "data_exploration/data_exploration_report.html"
+  },
+  "ensemble_evaluation": {
+    "confusion_matrix.html": "ensemble_evaluation/confusion_matrix.html",
+    "confusion_matrix_metrics.json": "ensemble_evaluation/confusion_matrix_metrics.json",
+    "detailed_results.json": "ensemble_evaluation/detailed_results.json",
+    "ensemble_results.json": "ensemble_evaluation/ensemble_results.json",
+    "evaluation_report.html": "ensemble_evaluation/evaluation_report.html",
+    "intermediate_results_fold_1.json": "ensemble_evaluation/intermediate_results_fold_1.json",
+    "intermediate_results_fold_2.json": "ensemble_evaluation/intermediate_results_fold_2.json",
+    "intermediate_results_fold_3.json": "ensemble_evaluation/intermediate_results_fold_3.json",
+    "intermediate_results_fold_4.json": "ensemble_evaluation/intermediate_results_fold_4.json",
+    "intermediate_results_fold_5.json": "ensemble_evaluation/intermediate_results_fold_5.json",
+    "test_predictions.csv": "ensemble_evaluation/test_predictions.csv"
+  },
+  "feature_analysis": {
+    "bow_pca.html": "feature_analysis/bow_pca.html",
+    "bow_stats.html": "feature_analysis/bow_stats.html",
+    "bow_tsne.html": "feature_analysis/bow_tsne.html",
+    "feature_analysis_report.html": "feature_analysis/feature_analysis_report.html",
+    "transformer_pca.html": "feature_analysis/transformer_pca.html",
+    "transformer_stats.html": "feature_analysis/transformer_stats.html",
+    "transformer_tsne.html": "feature_analysis/transformer_tsne.html",
+    "word2vec_pca.html": "feature_analysis/word2vec_pca.html",
+    "word2vec_stats.html": "feature_analysis/word2vec_stats.html",
+    "word2vec_tsne.html": "feature_analysis/word2vec_tsne.html"
+  },
+  "feature_comparison": {
+    "feature_comparison_confusion_matrix_bert.png": "feature_comparison/feature_comparison_confusion_matrix_bert.png",
+    "feature_comparison_confusion_matrix_bow.png": "feature_comparison/feature_comparison_confusion_matrix_bow.png",
+    "feature_comparison_confusion_matrix_bow_finbert_combined.png": "feature_comparison/feature_comparison_confusion_matrix_bow_finbert_combined.png",
+    "feature_comparison_confusion_matrix_bow_tfidf_finbert_mean.png": "feature_comparison/feature_comparison_confusion_matrix_bow_tfidf_finbert_mean.png",
+    "feature_comparison_confusion_matrix_tfidf.png": "feature_comparison/feature_comparison_confusion_matrix_tfidf.png",
+    "feature_comparison_confusion_matrix_w2v_win10_min2_sg.png": "feature_comparison/feature_comparison_confusion_matrix_w2v_win10_min2_sg.png",
+    "feature_comparison_confusion_matrix_w2v_win10_min5_sg.png": "feature_comparison/feature_comparison_confusion_matrix_w2v_win10_min5_sg.png",
+    "feature_comparison_dimensions.png": "feature_comparison/feature_comparison_dimensions.png",
+    "feature_comparison_per_class_f1.png": "feature_comparison/feature_comparison_per_class_f1.png",
+    "feature_comparison_performance.png": "feature_comparison/feature_comparison_performance.png",
+    "feature_comparison_results.csv": "feature_comparison/feature_comparison_results.csv",
+    "feature_comparison_timing.png": "feature_comparison/feature_comparison_timing.png",
+    "notes.txt": "feature_comparison/notes.txt"
+  },
+  "model_evaluation": {
+    "evaluation_results.json": "model_evaluation/evaluation_results.json",
+    "model_comparison.html": "model_evaluation/model_comparison.html"
+  },
+  "preprocessing": {
+    "images": {
+      "wordcloud_original.png": "preprocessing/images/wordcloud_original.png",
+      "wordcloud_processed.png": "preprocessing/images/wordcloud_processed.png"
+    },
+    "preprocessing_report.html": "preprocessing/preprocessing_report.html"
+  },
+  "word_frequencies_all.html": "word_frequencies_all.html",
+  "word_frequencies_bearish.html": "word_frequencies_bearish.html",
+  "word_frequencies_bullish.html": "word_frequencies_bullish.html",
+  "word_frequencies_neutral.html": "word_frequencies_neutral.html",
+  "wordcloud_all.png": "wordcloud_all.png",
+  "wordcloud_bearish.png": "wordcloud_bearish.png",
+  "wordcloud_bullish.png": "wordcloud_bullish.png",
+  "wordcloud_neutral.png": "wordcloud_neutral.png"
+}

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>Relatório Final - Text Mining Project 2025</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f5f8fa;
+            color: #222;
+            min-height: 100vh;
+        }
+        nav {
+            background: linear-gradient(90deg, #154360 70%, #21618c 100%);
+            padding: 0 0 0 30px;
+            display: flex;
+            align-items: center;
+            height: 56px;
+            box-shadow: 0 2px 8px #0001;
+            border-bottom-left-radius: 12px;
+            border-bottom-right-radius: 12px;
+        }
+        nav a {
+            color: #fff;
+            text-decoration: none;
+            margin-right: 32px;
+            font-size: 1.08em;
+            padding: 18px 0;
+            border-bottom: 3px solid transparent;
+            transition: border 0.2s, color 0.2s, background 0.2s;
+            border-radius: 4px 4px 0 0;
+        }
+        nav a.active, nav a:hover {
+            border-bottom: 3px solid #3498db;
+            color: #3498db;
+            background: #f0f6fa;
+            box-shadow: 0 2px 8px #3498db22;
+        }
+        .container {
+            max-width: 950px;
+            margin: 48px auto 32px auto;
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 4px 24px #d0d6db44;
+            padding: 48px 40px 40px 40px;
+            min-height: 80vh;
+        }
+        h1 {
+            color: #154360;
+            margin-top: 0;
+            font-size: 2.5em;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+            text-align: center;
+        }
+        h2 {
+            color: #21618c;
+            font-size: 1.35em;
+            margin-top: 36px;
+            margin-bottom: 12px;
+            font-weight: 600;
+            border-left: 4px solid #f7ca18;
+            padding-left: 10px;
+        }
+        .caption {
+            color: #555;
+            font-size: 1.08em;
+            margin-bottom: 10px;
+            margin-top: 32px;
+            font-weight: 500;
+            letter-spacing: 0.2px;
+        }
+        img, iframe {
+            max-width: 100%;
+            border-radius: 14px;
+            margin: 24px 0;
+            box-shadow: 0 4px 24px #0002, 0 1.5px 6px #15436022;
+            background: #f8fafd;
+            transition: box-shadow 0.3s, transform 0.3s;
+        }
+        img:hover, iframe:hover {
+            box-shadow: 0 8px 32px #15436033, 0 3px 12px #f7ca1833;
+            transform: scale(1.025);
+        }
+        img {
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+            border: 2px solid #eaeaea;
+        }
+        iframe {
+            border: none;
+            min-width: 320px;
+        }
+        .footer {
+            text-align: center;
+            color: #888;
+            font-size: 0.98em;
+            margin: 36px 0 12px 0;
+            letter-spacing: 0.1em;
+        }
+        @media (max-width: 700px) {
+            .container {
+                padding: 12px 4px;
+                margin: 16px 2px;
+            }
+            nav {
+                flex-direction: column;
+                height: auto;
+                padding: 0 0 0 10px;
+                border-radius: 0 0 12px 12px;
+            }
+            nav a {
+                margin: 0 18px 0 0;
+                font-size: 1em;
+                padding: 12px 0;
+            }
+            h1 {
+                font-size: 1.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="../results/data_exploration/data_exploration_report.html">Data Exploration</a>
+        <a href="../results/preprocessing/preprocessing_report.html">Preprocessing</a>
+        <a href="../results/feature_analysis/feature_analysis_report.html">Feature Analysis</a>
+        <a href="../results/corpus_splitting/corpus_splitting_report.html">Corpus Splitting</a>
+        <a href="../results/model_evaluation/model_comparison.html">Models Results</a>
+        <a href="../results/ensemble_evaluation/evaluation_report.html">Final Model Results</a>
+    </nav>
+    <div class="container">
+        <h1>Final Report – Text Mining Project 2025</h1>
+        <h2>Executive Summary</h2>
+        <p>
+            This report presents the main results of the text mining project, including exploratory analysis, preprocessing, model evaluation, and the performance of the final (ensemble) model. The following visualizations illustrate class distribution, word frequency, and the word cloud.
+        </p>
+        <div class="caption">Class Distribution</div>
+        <iframe src="../results/class_distribution.html" height="400" title="Class Distribution"></iframe>
+        <div class="caption">Word Frequency (Bearish)</div>
+        <iframe src="../results/word_frequencies_bearish.html" height="300" title="Word Frequency Bearish"></iframe>
+        <div class="caption">Word Frequency (Bullish)</div>
+        <iframe src="../results/word_frequencies_bullish.html" height="300" title="Word Frequency Bullish"></iframe>
+        <div class="caption">Word Frequency (Neutral)</div>
+        <iframe src="../results/word_frequencies_neutral.html" height="300" title="Word Frequency Neutral"></iframe>
+        <div class="caption">Wordcloud (Overall)</div>
+        <img src="../results/wordcloud_all.png" alt="Wordcloud Overall">
+    </div>
+    <div class="footer">
+        Automatically generated report &copy; 2025 | Text Mining Project
+    </div>
+</body>
+</html>
