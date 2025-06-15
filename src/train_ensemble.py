@@ -586,6 +586,20 @@ class EnsembleTrainer:
         logger.info(f"\nResults saved to {self.output_dir}")
         logger.info("Generated HTML report with visualizations")
 
+        # Export predictions to CSV
+        predictions_dir = Path('../notebooks/results/final_predictions')
+        predictions_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create DataFrame with test IDs and predictions
+        predictions_df = pd.DataFrame({
+            'id': range(len(test_predictions)),
+            'label': test_predictions
+        })
+        
+        # Save to CSV
+        predictions_df.to_csv(predictions_dir / 'pred_40.csv', index=False)
+        logger.info(f"Predictions exported to {predictions_dir / 'pred_40.csv'}")
+
     def train(self, texts: List[str], labels: List[int]) -> Dict:
         """Train ensemble model with improved feature extractors"""
         results = {}

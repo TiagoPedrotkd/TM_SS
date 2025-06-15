@@ -1,147 +1,80 @@
-<html>
-    <head>
-        <title>Ensemble Model Evaluation Report</title>
-        <style>
-            body {
-                font-family: 'Segoe UI', Arial, sans-serif;
-                margin: 40px;
-                background: #f4f6fa;
-                color: #222;
-                line-height: 1.7;
-            }
-            h1 {
-                color: #2a3f5f;
-                font-size: 2.4em;
-                margin-bottom: 0.5em;
-                letter-spacing: 1px;
-            }
-            h2 {
-                color: #3b4a6b;
-                border-left: 5px solid #636efa;
-                padding-left: 12px;
-                margin-top: 2em;
-                margin-bottom: 1em;
-                font-size: 1.5em;
-            }
-            .section {
-                background: #fff;
-                border-radius: 8px;
-                box-shadow: 0 2px 8px rgba(44,62,80,0.06);
-                padding: 32px 28px 24px 28px;
-                margin-bottom: 36px;
-            }
-            table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 10px;
-                margin-bottom: 10px;
-                background: #f8f9fa;
-                border-radius: 6px;
-                overflow: hidden;
-                box-shadow: 0 1px 2px rgba(44,62,80,0.04);
-            }
-            th, td {
-                padding: 12px 16px;
-                text-align: left;
-            }
-            th {
-                background: #e9ecef;
-                color: #495057;
-                font-weight: 600;
-                border-bottom: 2px solid #dee2e6;
-            }
-            tr:nth-child(even) td {
-                background: #f4f6fa;
-            }
-            .metric-box {
-                background: #f8f9fa;
-                border: 1px solid #dee2e6;
-                border-radius: 6px;
-                padding: 18px 20px;
-                margin: 14px 0;
-                box-shadow: 0 1px 4px rgba(44,62,80,0.04);
-                transition: box-shadow 0.2s;
-            }
-            .metric-box:hover {
-                box-shadow: 0 4px 16px rgba(44,62,80,0.10);
-            }
-            .metric-title {
-                font-weight: bold;
-                color: #495057;
-                margin-bottom: 6px;
-                font-size: 1.08em;
-            }
-            ul {
-                margin: 0 0 0 18px;
-                padding: 0;
-            }
-            li {
-                margin-bottom: 4px;
-            }
-            /* Responsividade */
-            @media (max-width: 700px) {
+
+        <html>
+        <head>
+            <title>Ensemble Model Evaluation Report</title>
+            <style>
                 body {
-                    margin: 10px;
+                    font-family: Arial, sans-serif;
+                    margin: 40px;
+                    line-height: 1.6;
                 }
                 .section {
-                    padding: 16px 8px 12px 8px;
+                    margin-bottom: 40px;
                 }
-                table, th, td {
-                    font-size: 0.98em;
+                .metric-box {
+                    background-color: #f8f9fa;
+                    border: 1px solid #dee2e6;
+                    border-radius: 4px;
+                    padding: 15px;
+                    margin: 10px 0;
                 }
-            }
-        </style>
-    </head>
-    <body>
-        <h1>Ensemble Model Evaluation Report</h1>
+                .metric-title {
+                    font-weight: bold;
+                    color: #495057;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Ensemble Model Evaluation Report</h1>
+            
+            <div class="section">
+                <h2>Model Configuration</h2>
+                <table>
+                    <tr>
+                        <th>Model</th>
+                        <th>Weight</th>
+                    </tr>
+                    <tr><td>bow_tfidf_finbert-lstm</td><td>0.3</td></tr><tr><td>bow-knn</td><td>0.2</td></tr><tr><td>word2vec-lstm</td><td>0.25</td></tr><tr><td>finbert-transformer</td><td>0.25</td></tr>
+                </table>
+            </div>
+            
+            <div class="section">
+                <h2>Overall Performance Metrics</h2>
+                <div class="metric-box">
+                    <div class="metric-title">Cross-Validation Accuracy</div>
+                    <div>0.768</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-title">Cross-Validation Macro F1-Score</div>
+                    <div>0.712</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-title">Cross-Validation MCC</div>
+                    <div>0.584 ± 0.014</div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>Performance Visualization</h2>
+                <div>                        <script type="text/javascript">window.PlotlyConfig = {MathJaxConfig: 'local'};</script>
+        <script src="https://cdn.plot.ly/plotly-2.12.1.min.js"></script>                <div id="06cf5ebe-d6e4-4073-b232-a046d04c9473" class="plotly-graph-div" style="height:1200px; width:100%;"></div>            <script type="text/javascript">                                    window.PLOTLYENV=window.PLOTLYENV || {};                                    if (document.getElementById("06cf5ebe-d6e4-4073-b232-a046d04c9473")) {                    Plotly.newPlot(                        "06cf5ebe-d6e4-4073-b232-a046d04c9473",                        [{"error_y":{"array":[0.03476787214328099,0.03860582899925059,0.012038411393875702],"type":"data","visible":true},"name":"precision","showlegend":true,"x":["Bearish","Bullish","Neutral"],"y":[0.5491826260430859,0.6452429717336029,0.8921140206113574],"type":"bar","xaxis":"x","yaxis":"y"},{"error_y":{"array":[0.012533251624256078,0.05221182595554099,0.030652865598738154],"type":"data","visible":true},"name":"recall","showlegend":false,"x":["Bearish","Bullish","Neutral"],"y":[0.6976235101883891,0.7202340367965369,0.799612567640161],"type":"bar","xaxis":"x2","yaxis":"y2"},{"error_y":{"array":[0.020229845140010805,0.0199622756169182,0.012366415116719563],"type":"data","visible":true},"name":"f1-score","showlegend":false,"x":["Bearish","Bullish","Neutral"],"y":[0.6136981126882628,0.6781278013200966,0.8427957629314964],"type":"bar","xaxis":"x3","yaxis":"y3"},{"error_y":{"array":[0.014289847319157953],"type":"data","visible":true},"name":"Individual MCCs","showlegend":true,"x":["Unknown"],"y":[0.5836079878731106],"type":"bar","xaxis":"x4","yaxis":"y4"},{"error_y":{"array":[0.014289847319157953],"type":"data","visible":true},"name":"Ensemble MCC","showlegend":true,"x":["Cross-validation"],"y":[0.5836079878731106],"type":"bar","xaxis":"x5","yaxis":"y5"}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmapgl":[{"type":"heatmapgl","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"}}},"xaxis":{"anchor":"y","domain":[0.0,1.0]},"yaxis":{"anchor":"x","domain":[0.88,1.0]},"xaxis2":{"anchor":"y2","domain":[0.0,1.0]},"yaxis2":{"anchor":"x2","domain":[0.66,0.78]},"xaxis3":{"anchor":"y3","domain":[0.0,1.0]},"yaxis3":{"anchor":"x3","domain":[0.44,0.56]},"xaxis4":{"anchor":"y4","domain":[0.0,1.0]},"yaxis4":{"anchor":"x4","domain":[0.22,0.33999999999999997]},"xaxis5":{"anchor":"y5","domain":[0.0,1.0]},"yaxis5":{"anchor":"x5","domain":[0.0,0.12]},"annotations":[{"font":{"size":16},"showarrow":false,"text":"Precision","x":0.5,"xanchor":"center","xref":"paper","y":1.0,"yanchor":"bottom","yref":"paper"},{"font":{"size":16},"showarrow":false,"text":"Recall","x":0.5,"xanchor":"center","xref":"paper","y":0.78,"yanchor":"bottom","yref":"paper"},{"font":{"size":16},"showarrow":false,"text":"F1-score","x":0.5,"xanchor":"center","xref":"paper","y":0.56,"yanchor":"bottom","yref":"paper"},{"font":{"size":16},"showarrow":false,"text":"Individual Model MCC Scores","x":0.5,"xanchor":"center","xref":"paper","y":0.33999999999999997,"yanchor":"bottom","yref":"paper"},{"font":{"size":16},"showarrow":false,"text":"Ensemble MCC","x":0.5,"xanchor":"center","xref":"paper","y":0.12,"yanchor":"bottom","yref":"paper"}],"title":{"text":"Model Performance Metrics Including Individual and Ensemble MCC"},"height":1200,"showlegend":true},                        {"responsive": true}                    )                };                            </script>        </div>
+            </div>
+            
+            <div class="section">
+                <h2>Test Set Predictions</h2>
+                <div class="metric-box">
+                    <div class="metric-title">Number of test samples</div>
+                    <div>2388</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-title">Prediction distribution</div>
+                    <ul>
+                        <li>Bearish: 575 (24.1%)</li>
+                        <li>Bullish: 505 (21.1%)</li>
+                        <li>Neutral: 1308 (54.8%)</li>
+                    </ul>
+                </div>
+            </div>
+        </body>
+        </html>
         
-        <div class="section">
-            <h2>Model Configuration</h2>
-            <table>
-                <tr>
-                    <th>Model</th>
-                    <th>Weight</th>
-                </tr>
-                <tr><td>bow_tfidf_finbert-lstm</td><td>0.3</td></tr><tr><td>bow-knn</td><td>0.2</td></tr><tr><td>word2vec-lstm</td><td>0.25</td></tr><tr><td>finbert-transformer</td><td>0.25</td></tr>
-            </table>
-        </div>
-        
-        <div class="section">
-            <h2>Overall Performance Metrics</h2>
-            <div class="metric-box">
-                <div class="metric-title">Cross-Validation Accuracy</div>
-                <div>0.762</div>
-            </div>
-            <div class="metric-box">
-                <div class="metric-title">Cross-Validation Macro F1-Score</div>
-                <div>0.705</div>
-            </div>
-            <div class="metric-box">
-                <div class="metric-title">Cross-Validation MCC</div>
-                <div>0.574 � 0.014</div>
-            </div>
-        </div>
-        
-        <div class="section">
-            <h2>Performance Visualization</h2>
-            <div>                        <script type="text/javascript">window.PlotlyConfig = {MathJaxConfig: 'local'};</script>
-        <script charset="utf-8" src="https://cdn.plot.ly/plotly-3.0.1.min.js"></script>                <div id="bc5f73c3-c8e4-4dcb-97f9-654e2c1dce23" class="plotly-graph-div" style="height:1200px; width:100%;"></div>            <script type="text/javascript">                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("bc5f73c3-c8e4-4dcb-97f9-654e2c1dce23")) {                    Plotly.newPlot(                        "bc5f73c3-c8e4-4dcb-97f9-654e2c1dce23",                        [{"error_y":{"array":[0.018061402287472605,0.03167213971362141,0.008145057045737793],"type":"data","visible":true},"name":"precision","showlegend":true,"x":["Bearish","Bullish","Neutral"],"y":[0.5493800278111888,0.6200089797129678,0.8913195212530486],"type":"bar","xaxis":"x","yaxis":"y"},{"error_y":{"array":[0.025092858089022882,0.027497612840109004,0.014195406888108945],"type":"data","visible":true},"name":"recall","showlegend":false,"x":["Bearish","Bullish","Neutral"],"y":[0.6685169165705498,0.7436390692640693,0.7895761434954076],"type":"bar","xaxis":"x2","yaxis":"y2"},{"error_y":{"array":[0.01968111406890685,0.017766120924223985,0.005136749008809153],"type":"data","visible":true},"name":"f1-score","showlegend":false,"x":["Bearish","Bullish","Neutral"],"y":[0.6030147515299309,0.6753214779923973,0.8372255367108549],"type":"bar","xaxis":"x3","yaxis":"y3"},{"error_y":{"array":[0.013629086911036196],"type":"data","visible":true},"name":"Individual MCCs","showlegend":true,"x":["Unknown"],"y":[0.5744211267306636],"type":"bar","xaxis":"x4","yaxis":"y4"},{"error_y":{"array":[0.013629086911036196],"type":"data","visible":true},"name":"Ensemble MCC","showlegend":true,"x":["Cross-validation"],"y":[0.5744211267306636],"type":"bar","xaxis":"x5","yaxis":"y5"}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermap":[{"type":"scattermap","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"}}},"xaxis":{"anchor":"y","domain":[0.0,1.0]},"yaxis":{"anchor":"x","domain":[0.88,1.0]},"xaxis2":{"anchor":"y2","domain":[0.0,1.0]},"yaxis2":{"anchor":"x2","domain":[0.66,0.78]},"xaxis3":{"anchor":"y3","domain":[0.0,1.0]},"yaxis3":{"anchor":"x3","domain":[0.44,0.56]},"xaxis4":{"anchor":"y4","domain":[0.0,1.0]},"yaxis4":{"anchor":"x4","domain":[0.22,0.33999999999999997]},"xaxis5":{"anchor":"y5","domain":[0.0,1.0]},"yaxis5":{"anchor":"x5","domain":[0.0,0.12]},"annotations":[{"font":{"size":16},"showarrow":false,"text":"Precision","x":0.5,"xanchor":"center","xref":"paper","y":1.0,"yanchor":"bottom","yref":"paper"},{"font":{"size":16},"showarrow":false,"text":"Recall","x":0.5,"xanchor":"center","xref":"paper","y":0.78,"yanchor":"bottom","yref":"paper"},{"font":{"size":16},"showarrow":false,"text":"F1-score","x":0.5,"xanchor":"center","xref":"paper","y":0.56,"yanchor":"bottom","yref":"paper"},{"font":{"size":16},"showarrow":false,"text":"Individual Model MCC Scores","x":0.5,"xanchor":"center","xref":"paper","y":0.33999999999999997,"yanchor":"bottom","yref":"paper"},{"font":{"size":16},"showarrow":false,"text":"Ensemble MCC","x":0.5,"xanchor":"center","xref":"paper","y":0.12,"yanchor":"bottom","yref":"paper"}],"title":{"text":"Model Performance Metrics Including Individual and Ensemble MCC"},"height":1200,"showlegend":true},                        {"responsive": true}                    )                };            </script>        </div>
-        </div>
-        
-        <div class="section">
-            <h2>Test Set Predictions</h2>
-            <div class="metric-box">
-                <div class="metric-title">Number of test samples</div>
-                <div>2388</div>
-            </div>
-            <div class="metric-box">
-                <div class="metric-title">Prediction distribution</div>
-                <ul>
-                    <li>Bearish: 457 (19.1%)</li>
-                    <li>Bullish: 590 (24.7%)</li>
-                    <li>Neutral: 1341 (56.2%)</li>
-                </ul>
-            </div>
-        </div>
-    </body>
-</html>
